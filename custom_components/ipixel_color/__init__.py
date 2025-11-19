@@ -4,12 +4,12 @@ from __future__ import annotations
 import logging
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_ADDRESS, CONF_NAME, Platform
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 
 from .api import iPIXELAPI, iPIXELConnectionError, iPIXELTimeoutError
-from .const import DOMAIN
+from .const import DOMAIN, CONF_ADDRESS, CONF_NAME
 
 _LOGGER = logging.getLogger(__name__)
 

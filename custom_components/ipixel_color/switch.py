@@ -6,13 +6,12 @@ from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_ADDRESS, CONF_NAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import DeviceInfo
 
 from .api import iPIXELAPI, iPIXELConnectionError
-from .const import DOMAIN
+from .const import DOMAIN, CONF_ADDRESS, CONF_NAME
 
 _LOGGER = logging.getLogger(__name__)
 

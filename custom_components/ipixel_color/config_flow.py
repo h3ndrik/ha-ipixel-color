@@ -6,13 +6,13 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.const import CONF_ADDRESS, CONF_NAME
+from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 
 from .api import iPIXELAPI, discover_ipixel_devices, iPIXELConnectionError, iPIXELTimeoutError
-from .const import DOMAIN
+from .const import DOMAIN, CONF_ADDRESS
 
 _LOGGER = logging.getLogger(__name__)
 

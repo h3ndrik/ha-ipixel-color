@@ -1,20 +1,22 @@
 {
   "domain": "ipixel_color",
   "name": "iPIXEL Color",
-  "version": "0.1.0",
-  "config_flow": true,
-  "documentation": "https://github.com/cagcoach/ha-ipixel-color",
-  "issue_tracker": "https://github.com/cagcoach/ha-ipixel-color/issues",
-  "requirements": [
-    "bleak>=0.20.0"
-  ],
-  "dependencies": [
-    "bluetooth"
-  ],
   "codeowners": [
     "@cagcoach"
   ],
-  "iot_class": "local_push",
+  "config_flow": true,
+  "dependencies": [
+    "bluetooth"
+  ],
+  "documentation": "https://github.com/cagcoach/ha-ipixel-color",
   "integration_type": "device",
-  "loggers": ["custom_components.ipixel_color"],
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/cagcoach/ha-ipixel-color/issues",
+  "loggers": [
+    "custom_components.ipixel_color"
+  ],
+  "requirements": [
+    "bleak>=0.20.0"
+  ],
+  "version": "0.1.0"
 }
