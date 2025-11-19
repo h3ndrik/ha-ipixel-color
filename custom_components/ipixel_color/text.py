@@ -76,7 +76,9 @@ class iPIXELTextDisplay(TextEntity):
     @property
     def available(self) -> bool:
         """Return True if entity is available."""
-        return self._available and self._api.is_connected
+        # Always return True to allow reconnection attempts
+        # The actual connection state will be handled in the async_set_value method
+        return True
 
     async def async_set_value(self, value: str) -> None:
         """Set the text to display."""
@@ -102,7 +104,7 @@ class iPIXELTextDisplay(TextEntity):
                 
         except iPIXELConnectionError as err:
             _LOGGER.error("Connection error while displaying text: %s", err)
-            self._available = False
+            # Don't set unavailable to allow retry
         except Exception as err:
             _LOGGER.error("Unexpected error while displaying text: %s", err)
 

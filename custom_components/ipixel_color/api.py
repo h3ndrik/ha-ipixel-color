@@ -12,7 +12,7 @@ from bleak.exc import BleakError
 
 from homeassistant.exceptions import HomeAssistantError
 
-from .const import WRITE_UUID, NOTIFY_UUID, DEVICE_NAME_PREFIX, CONNECTION_TIMEOUT
+from .const import WRITE_UUID, NOTIFY_UUID, DEVICE_NAME_PREFIX, CONNECTION_TIMEOUT, RECONNECT_ATTEMPTS, RECONNECT_DELAY
 
 _LOGGER = logging.getLogger(__name__)
 

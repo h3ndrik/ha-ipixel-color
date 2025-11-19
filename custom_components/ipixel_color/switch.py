@@ -67,7 +67,9 @@ class iPIXELSwitch(SwitchEntity):
     @property
     def available(self) -> bool:
         """Return True if entity is available."""
-        return self._available and self._api.is_connected
+        # Always return True to allow reconnection attempts
+        # The actual connection state will be handled in the turn_on/turn_off methods
+        return True
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the entity on."""
@@ -85,7 +87,7 @@ class iPIXELSwitch(SwitchEntity):
                 
         except iPIXELConnectionError as err:
             _LOGGER.error("Connection error while turning on: %s", err)
-            self._available = False
+            # Don't set unavailable to allow retry
         except Exception as err:
             _LOGGER.error("Unexpected error while turning on: %s", err)
 
@@ -105,7 +107,7 @@ class iPIXELSwitch(SwitchEntity):
                 
         except iPIXELConnectionError as err:
             _LOGGER.error("Connection error while turning off: %s", err)
-            self._available = False
+            # Don't set unavailable to allow retry
         except Exception as err:
             _LOGGER.error("Unexpected error while turning off: %s", err)
 

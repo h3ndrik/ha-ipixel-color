@@ -21,3 +21,4 @@ SCAN_INTERVAL = 30
 # Connection settings
 CONNECTION_TIMEOUT = 10
 RECONNECT_ATTEMPTS = 3
+RECONNECT_DELAY = 1  # seconds between retry attempts
