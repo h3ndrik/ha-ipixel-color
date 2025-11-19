@@ -1,0 +1,24 @@
+{
+  "domain": "ipixel_color",
+  "name": "iPIXEL Color",
+  "version": "0.1.0",
+  "config_flow": true,
+  "documentation": "https://github.com/cagcoach/ha-ipixel-color",
+  "issue_tracker": "https://github.com/cagcoach/ha-ipixel-color/issues",
+  "requirements": [
+    "bleak>=0.20.0"
+  ],
+  "dependencies": [
+    "bluetooth"
+  ],
+  "codeowners": [
+    "@cagcoach"
+  ],
+  "iot_class": "local_push",
+  "integration_type": "device",
+  "bluetooth": [
+    {
+      "local_name": "LED_BLE_*"
+    }
+  ]
+}
