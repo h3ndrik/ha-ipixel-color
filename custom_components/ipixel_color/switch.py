@@ -57,7 +57,6 @@ class iPIXELSwitch(SwitchEntity):
             manufacturer="iPIXEL",
             model="LED Matrix Display",
             sw_version="1.0",
-            via_device=(DOMAIN, address),
         )
 
     @property

@@ -1,6 +1,14 @@
 {
   "domain": "ipixel_color",
   "name": "iPIXEL Color",
+  "bluetooth": [
+    {
+      "local_name": "LED_BLE_*"
+    },
+    {
+      "service_uuid": "0000fa01-0000-1000-8000-00805f9b34fb"
+    }
+  ],
   "codeowners": [
     "@cagcoach"
   ],
