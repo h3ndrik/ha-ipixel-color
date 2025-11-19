@@ -87,14 +87,8 @@ class iPIXELTextDisplay(TextEntity):
                 _LOGGER.debug("Reconnecting to device before displaying text")
                 await self._api.connect()
             
-            # Send text to display with current settings
-            success = await self._api.display_text(
-                text=value,
-                effect=self._effect,
-                speed=self._speed,
-                color_fg=self._color_fg,
-                color_bg=self._color_bg
-            )
+            # Send text to display
+            success = await self._api.display_text(value)
             
             if success:
                 self._current_text = value

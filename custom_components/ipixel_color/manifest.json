@@ -24,7 +24,8 @@
     "custom_components.ipixel_color"
   ],
   "requirements": [
-    "bleak>=0.20.0"
+    "bleak>=0.20.0",
+    "pillow>=10.0.0"
   ],
   "version": "0.1.0"
 }

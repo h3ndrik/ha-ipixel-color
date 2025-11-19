@@ -14,7 +14,7 @@ from .const import DOMAIN, CONF_ADDRESS, CONF_NAME
 _LOGGER = logging.getLogger(__name__)
 
 # Platforms supported by this integration
-PLATFORMS: list[Platform] = [Platform.SWITCH, Platform.TEXT]
+PLATFORMS: list[Platform] = [Platform.SWITCH, Platform.TEXT, Platform.SENSOR]
 
 # Type alias for iPIXEL config entries
 
@@ -35,6 +35,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             raise ConfigEntryNotReady(f"Failed to connect to iPIXEL device at {address}")
         
         _LOGGER.info("Successfully connected to iPIXEL device %s", address)
+        
+        # Get device info for sensors
+        await api.get_device_info()
         
     except iPIXELTimeoutError as err:
         _LOGGER.error("Connection timeout to iPIXEL device %s: %s", address, err)
