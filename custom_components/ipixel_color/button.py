@@ -79,6 +79,7 @@ class iPIXELUpdateButton(ButtonEntity):
             font_name = await self._get_font_setting()
             font_size = await self._get_font_size_setting()
             antialias = await self._get_antialiasing_setting()
+            line_spacing = await self._get_line_spacing_setting()
             
             # Connect if needed
             if not self._api.is_connected:
@@ -86,12 +87,12 @@ class iPIXELUpdateButton(ButtonEntity):
                 await self._api.connect()
             
             # Send text to display with current settings
-            success = await self._api.display_text(text, antialias, font_size, font_name)
+            success = await self._api.display_text(text, antialias, font_size, font_name, line_spacing)
             
             if success:
-                _LOGGER.info("Manual display update successful: %s (font: %s, size: %s, antialias: %s)", 
+                _LOGGER.info("Manual display update successful: %s (font: %s, size: %s, antialias: %s, spacing: %spx)", 
                            text, font_name or "Default", 
-                           f"{font_size}px" if font_size else "Auto", antialias)
+                           f"{font_size:.1f}px" if font_size else "Auto", antialias, line_spacing)
             else:
                 _LOGGER.error("Manual display update failed")
                 
@@ -123,14 +124,14 @@ class iPIXELUpdateButton(ButtonEntity):
             _LOGGER.debug("Could not get font setting: %s", err)
         return None
 
-    async def _get_font_size_setting(self) -> int | None:
+    async def _get_font_size_setting(self) -> float | None:
         """Get the current font size setting from the number entity."""
         try:
             # Get the font size number entity
             entity_id = f"number.{self._name.lower().replace(' ', '_')}_font_size"
             state = self.hass.states.get(entity_id)
             if state and state.state not in ("unknown", "unavailable", ""):
-                size_value = int(float(state.state))
+                size_value = float(state.state)
                 # Return None for 0 (auto-sizing), otherwise return the size
                 return None if size_value == 0 else size_value
         except Exception as err:
@@ -148,6 +149,18 @@ class iPIXELUpdateButton(ButtonEntity):
         except Exception as err:
             _LOGGER.debug("Could not get antialiasing setting: %s", err)
         return True  # Default to antialiasing enabled
+
+    async def _get_line_spacing_setting(self) -> int:
+        """Get the current line spacing setting from the number entity."""
+        try:
+            # Get the line spacing number entity
+            entity_id = f"number.{self._name.lower().replace(' ', '_')}_line_spacing"
+            state = self.hass.states.get(entity_id)
+            if state and state.state not in ("unknown", "unavailable", ""):
+                return int(float(state.state))
+        except Exception as err:
+            _LOGGER.debug("Could not get line spacing setting: %s", err)
+        return 0  # Default to no extra spacing
 
     @property
     def available(self) -> bool:

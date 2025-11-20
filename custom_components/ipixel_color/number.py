@@ -29,6 +29,7 @@ async def async_setup_entry(
     
     async_add_entities([
         iPIXELFontSize(api, entry, address, name),
+        iPIXELLineSpacing(api, entry, address, name),
     ])
 
 
@@ -36,9 +37,9 @@ class iPIXELFontSize(NumberEntity):
     """Representation of an iPIXEL Color font size setting."""
 
     _attr_mode = NumberMode.BOX
-    _attr_native_min_value = 0  # 0 = auto-sizing
-    _attr_native_max_value = 64  # Maximum font size for 32x32 display
-    _attr_native_step = 1
+    _attr_native_min_value = 0.0  # 0 = auto-sizing
+    _attr_native_max_value = 64.0  # Maximum font size for 32x32 display
+    _attr_native_step = 0.5  # Allow half-pixel increments
     _attr_icon = "mdi:format-size"
     _attr_entity_category = None
 
@@ -56,8 +57,8 @@ class iPIXELFontSize(NumberEntity):
         self._name = name
         self._attr_name = f"{name} Font Size"
         self._attr_unique_id = f"{address}_font_size"
-        self._attr_native_value = 0  # 0 means auto-sizing
-        self._attr_entity_description = "Font size in pixels (0 = auto-sizing to fit display)"
+        self._attr_native_value = 0.0  # 0 means auto-sizing
+        self._attr_entity_description = "Font size in pixels (0 = auto-sizing, supports decimals)"
         
         # Device info for grouping in device registry
         self._attr_device_info = DeviceInfo(
@@ -76,14 +77,71 @@ class iPIXELFontSize(NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         """Set the font size."""
         if self._attr_native_min_value <= value <= self._attr_native_max_value:
-            self._attr_native_value = int(value)
-            if int(value) == 0:
+            self._attr_native_value = value
+            if value == 0:
                 _LOGGER.debug("Font size changed to: auto-sizing")
             else:
-                _LOGGER.debug("Font size changed to: %d pixels", int(value))
+                _LOGGER.debug("Font size changed to: %.1f pixels", value)
             # Note: The actual font size will be used when text is displayed
         else:
             _LOGGER.error("Invalid font size: %f (min: %f, max: %f)", 
+                         value, self._attr_native_min_value, self._attr_native_max_value)
+
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return True
+
+
+class iPIXELLineSpacing(NumberEntity):
+    """Representation of an iPIXEL Color line spacing setting."""
+
+    _attr_mode = NumberMode.BOX
+    _attr_native_min_value = 0  # No extra spacing
+    _attr_native_max_value = 20  # Maximum 20 pixels of spacing
+    _attr_native_step = 1
+    _attr_icon = "mdi:format-line-spacing"
+    _attr_entity_category = None
+
+    def __init__(
+        self, 
+        api: iPIXELAPI, 
+        entry: ConfigEntry, 
+        address: str, 
+        name: str
+    ) -> None:
+        """Initialize the line spacing number."""
+        self._api = api
+        self._entry = entry
+        self._address = address
+        self._name = name
+        self._attr_name = f"{name} Line Spacing"
+        self._attr_unique_id = f"{address}_line_spacing"
+        self._attr_native_value = 0  # Default to no extra spacing
+        self._attr_entity_description = "Extra spacing between lines in pixels (for multiline text)"
+        
+        # Device info for grouping in device registry
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, address)},
+            name=name,
+            manufacturer="iPIXEL",
+            model="LED Matrix Display",
+            sw_version="1.0",
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the current line spacing value."""
+        return self._attr_native_value
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Set the line spacing."""
+        if self._attr_native_min_value <= value <= self._attr_native_max_value:
+            self._attr_native_value = int(value)
+            _LOGGER.debug("Line spacing changed to: %d pixels", int(value))
+            # Note: The actual line spacing will be used when text is displayed
+        else:
+            _LOGGER.error("Invalid line spacing: %f (min: %f, max: %f)", 
                          value, self._attr_native_min_value, self._attr_native_max_value)
 
     @property

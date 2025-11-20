@@ -104,14 +104,15 @@ class iPIXELAPI:
             }
             return self._device_info
     
-    async def display_text(self, text: str, antialias: bool = True, font_size: int | None = None, font: str | None = None) -> bool:
+    async def display_text(self, text: str, antialias: bool = True, font_size: float | None = None, font: str | None = None, line_spacing: int = 0) -> bool:
         """Display text as image using PIL.
         
         Args:
             text: Text to display (supports multiline with \n)
             antialias: Enable text antialiasing for smoother rendering
-            font_size: Fixed font size in pixels, or None for auto-sizing
+            font_size: Fixed font size in pixels (can be fractional), or None for auto-sizing
             font: Font name from fonts/ folder, or None for default
+            line_spacing: Additional spacing between lines in pixels
         """
         try:
             # Get device dimensions
@@ -120,7 +121,7 @@ class iPIXELAPI:
             height = device_info["height"]
             
             # Render text to PNG
-            png_data = render_text_to_png(text, width, height, antialias, font_size, font)
+            png_data = render_text_to_png(text, width, height, antialias, font_size, font, line_spacing)
             
             # Send as PNG following ipixel-ctrl write_data_png.py
             data_size = len(png_data)

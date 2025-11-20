@@ -40,7 +40,7 @@ def _get_font_path(font_name: str) -> str | None:
     return None
 
 
-def render_text_to_png(text: str, width: int, height: int, antialias: bool = True, font_size: int | None = None, font: str | None = None) -> bytes:
+def render_text_to_png(text: str, width: int, height: int, antialias: bool = True, font_size: float | None = None, font: str | None = None, line_spacing: int = 0) -> bytes:
     """Render text to PNG image data.
     
     Args:
@@ -48,8 +48,9 @@ def render_text_to_png(text: str, width: int, height: int, antialias: bool = Tru
         width: Display width in pixels
         height: Display height in pixels
         antialias: Enable antialiasing for smoother text (default: True)
-        font_size: Fixed font size in pixels, or None for auto-sizing (default: None)
+        font_size: Fixed font size in pixels (can be fractional), or None for auto-sizing (default: None)
         font: Font name from fonts/ folder, or None for default (default: None)
+        line_spacing: Additional spacing between lines in pixels (default: 0)
         
     Returns:
         PNG image data as bytes
@@ -69,7 +70,7 @@ def render_text_to_png(text: str, width: int, height: int, antialias: bool = Tru
     if font_size is not None:
         font_obj = get_fixed_font(font_size, font)
     else:
-        font_obj = get_optimal_font(draw, lines, width, height, font)
+        font_obj = get_optimal_font(draw, lines, width, height, font, line_spacing)
     
     # Create temporary image to measure actual content bounds
     temp_img = Image.new('L', (width, height), 0)  # Grayscale for easier analysis
@@ -91,7 +92,7 @@ def render_text_to_png(text: str, width: int, height: int, antialias: bool = Tru
             'height': line_height,
             'y_pos': temp_y
         })
-        temp_y += line_height
+        temp_y += line_height + line_spacing  # Add line spacing between lines
     
     # Calculate actual content bounds by analyzing pixels
     content_bounds = _calculate_content_bounds(temp_img)
@@ -126,7 +127,7 @@ def render_text_to_png(text: str, width: int, height: int, antialias: bool = Tru
             draw.text((x, current_y), line, font=font_obj, fill=1)  # 1 for white in 1-bit mode
         else:
             draw.text((x, current_y), line, font=font_obj, fill=(255, 255, 255))
-        current_y += data['height']
+        current_y += data['height'] + line_spacing  # Add line spacing between lines
     
     # Convert to PNG bytes
     png_buffer = io.BytesIO()
@@ -207,11 +208,11 @@ def _calculate_content_bounds(img: Image.Image) -> tuple[int, int, int, int] | N
     return left, top, right, bottom
 
 
-def get_fixed_font(size: int, font_name: str | None = None) -> ImageFont.FreeTypeFont:
+def get_fixed_font(size: float, font_name: str | None = None) -> ImageFont.FreeTypeFont:
     """Get font with fixed size.
     
     Args:
-        size: Font size in pixels
+        size: Font size in pixels (can be fractional)
         font_name: Optional font name from fonts/ folder
         
     Returns:
@@ -230,12 +231,12 @@ def get_fixed_font(size: int, font_name: str | None = None) -> ImageFont.FreeTyp
         # Use default font if custom font failed or not specified
         return ImageFont.load_default()
     except Exception as e:
-        _LOGGER.warning("Error loading font size %d: %s, using default", size, e)
+        _LOGGER.warning("Error loading font size %.1f: %s, using default", size, e)
         return ImageFont.load_default()
 
 
 def get_optimal_font(draw: ImageDraw.Draw, lines: list[str], 
-                     max_width: int, max_height: int, font_name: str | None = None) -> ImageFont.FreeTypeFont:
+                     max_width: int, max_height: int, font_name: str | None = None, line_spacing: int = 0) -> ImageFont.FreeTypeFont:
     """Find the largest font size that fits all text within dimensions.
     
     Args:
@@ -244,56 +245,115 @@ def get_optimal_font(draw: ImageDraw.Draw, lines: list[str],
         max_width: Maximum width in pixels
         max_height: Maximum height in pixels
         font_name: Optional font name from fonts/ folder
+        line_spacing: Additional spacing between lines in pixels
         
     Returns:
         Optimal font for the text
     """
-    # Try different font sizes from large to small (down to 1)
-    for size in range(min(max_height, max_width), 0, -1):
-        try:
-            # Try to load custom font first, then default
-            font = None
-            if font_name:
-                font_path = _get_font_path(font_name)
-                if font_path:
-                    try:
-                        font = ImageFont.truetype(font_path, size)
-                    except Exception as e:
-                        _LOGGER.debug("Custom font %s failed at size %d: %s", font_name, size, e)
+    # Compute theoretical optimal size based on text proportions
+    # Start with a baseline font to measure proportions
+    baseline_size = 20.0
+    baseline_font = get_fixed_font(baseline_size, font_name)
+    
+    # Find the longest line to determine width constraint
+    longest_line = max(lines, key=len) if lines else ""
+    
+    # Measure baseline dimensions
+    bbox = draw.textbbox((0, 0), longest_line, font=baseline_font)
+    baseline_width = bbox[2] - bbox[0]
+    baseline_line_height = bbox[3] - bbox[1]
+    
+    # Calculate total height with line spacing
+    total_baseline_height = baseline_line_height * len(lines)
+    if len(lines) > 1:
+        total_baseline_height += line_spacing * (len(lines) - 1)
+    
+    # Calculate theoretical optimal size based on proportions
+    width_ratio = max_width / baseline_width if baseline_width > 0 else 1.0
+    height_ratio = max_height / total_baseline_height if total_baseline_height > 0 else 1.0
+    theoretical_size = baseline_size * min(width_ratio, height_ratio)
+    
+    # Clamp to reasonable range
+    theoretical_size = max(1.0, min(theoretical_size, min(max_height, max_width)))
+    
+    _LOGGER.debug("Theoretical optimal size: %.1f (width_ratio: %.2f, height_ratio: %.2f)",
+                 theoretical_size, width_ratio, height_ratio)
+    
+    # Try sizes around the theoretical optimal with fine increments
+    best_font = None
+    best_size = 0.0
+    
+    # Test 3 iterations with refinement
+    test_ranges = [
+        (theoretical_size * 0.7, theoretical_size * 1.3, 2.0),  # Coarse: ±30% with 2.0 step
+        (best_size - 2.0, best_size + 2.0, 0.5),                # Medium: ±2 with 0.5 step  
+        (best_size - 0.5, best_size + 0.5, 0.1),                # Fine: ±0.5 with 0.1 step
+    ]
+    
+    for iteration, (start, end, step) in enumerate(test_ranges):
+        if iteration > 0 and best_size == 0:
+            break  # Skip refinement if no valid size found
             
-            # Use default font if custom font failed or not specified
-            if font is None:
-                font = ImageFont.load_default()
-            
-            # Check if all lines fit within dimensions
-            fits = True
-            total_height = 0
-            
-            for line in lines:
-                bbox = draw.textbbox((0, 0), line, font=font)
-                text_width = bbox[2] - bbox[0]
-                text_height = bbox[3] - bbox[1]
+        current_start = max(1.0, start if iteration == 0 else start)
+        current_end = min(min(max_height, max_width), end if iteration == 0 else end)
+        
+        size = current_start
+        while size <= current_end:
+            try:
+                # Try to load font at this size
+                font = None
+                if font_name:
+                    font_path = _get_font_path(font_name)
+                    if font_path:
+                        try:
+                            font = ImageFont.truetype(font_path, size)
+                        except Exception as e:
+                            _LOGGER.debug("Custom font %s failed at size %.1f: %s", font_name, size, e)
                 
-                # Check if line fits horizontally
-                if text_width > max_width:
-                    fits = False
-                    break
+                # Use default font if custom font failed or not specified
+                if font is None:
+                    font = ImageFont.load_default()
+                
+                # Check if all lines fit within dimensions
+                fits = True
+                total_height = 0
+                
+                for line in lines:
+                    bbox = draw.textbbox((0, 0), line, font=font)
+                    text_width = bbox[2] - bbox[0]
+                    text_height = bbox[3] - bbox[1]
                     
-                total_height += text_height
-            
-            # Check if all lines fit vertically
-            if total_height > max_height:
-                fits = False
-            
-            if fits:
-                _LOGGER.debug("Optimal font size: %d (total height: %d/%d)", 
-                            size, total_height, max_height)
-                return font
+                    # Check if line fits horizontally
+                    if text_width > max_width:
+                        fits = False
+                        break
+                        
+                    total_height += text_height
                 
-        except Exception as e:
-            _LOGGER.debug("Font size %d failed: %s", size, e)
-            continue
+                # Add line spacing to total height
+                if len(lines) > 1:
+                    total_height += line_spacing * (len(lines) - 1)
+                
+                # Check if all lines fit vertically
+                if total_height > max_height:
+                    fits = False
+                
+                if fits and size > best_size:
+                    best_size = size
+                    best_font = font
+                    _LOGGER.debug("Iteration %d: Found better size: %.1f (total height: %d/%d)", 
+                                iteration + 1, size, total_height, max_height)
+                    
+            except Exception as e:
+                _LOGGER.debug("Font size %.1f failed: %s", size, e)
+            
+            size += step
+    
+    # Return best font found
+    if best_font:
+        _LOGGER.debug("Using optimal font size: %.1f", best_size)
+        return best_font
     
     # Fallback to minimum font size
     _LOGGER.warning("Using fallback font - text may not fit optimally")
-    return ImageFont.load_default()
+    return get_fixed_font(1.0, font_name)
