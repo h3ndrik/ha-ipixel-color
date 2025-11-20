@@ -248,15 +248,15 @@ class iPIXELAPI:
             img.save(png_buffer, format='PNG')
             png_data = png_buffer.getvalue()
             
-            # Send as PNG (0x0002 command like ipixel-ctrl)
+            # Send as PNG following ipixel-ctrl write_data_png.py exactly
             data_size = len(png_data)
             data_crc = crc32(png_data) & 0xFFFFFFFF
             
-            # First enable DIY mode (like go-ipxl examples)
-            diy_command = bytes([5, 0, 4, 1, 3])  # Enable DIY mode with clear screen
+            # 1. Enable DIY mode first (mode 1 = enter and clear current, show new)
+            diy_command = bytes([5, 0, 4, 1, 1])  # Changed to mode 1
             await self._send_command(diy_command)
             
-            # Build PNG command following ipixel-ctrl format exactly
+            # 2. Build payload exactly like ipixel-ctrl
             payload = bytearray()
             payload.append(0x00)  # Fixed byte
             payload.extend(data_size.to_bytes(4, 'little'))  # Data size
@@ -265,19 +265,19 @@ class iPIXELAPI:
             payload.append(0x01)  # Buffer number (screen 1)
             payload.extend(png_data)  # PNG data
             
-            # Create complete command with length header
-            total_length = len(payload) + 4  # +4 for length and command
+            # 3. Use common.make_payload equivalent (from ipixel-ctrl/commands/common.py)
             command = bytearray()
+            total_length = len(payload) + 4  # +4 for length(2) + command(2)
             command.extend(total_length.to_bytes(2, 'little'))  # Length
-            command.extend([0x02, 0x00])  # Command 0x0002 (little-endian)
-            command.extend(payload)
+            command.extend([0x02, 0x00])  # Command 0x0002
+            command.extend(payload)  # Payload
             
             success = await self._send_command(bytes(command))
             if success:
-                _LOGGER.info("Text image sent successfully: %s (size: %dx%d, PNG: %d bytes)", 
-                           text, width, height, data_size)
+                _LOGGER.info("PNG sent: %s (%dx%d, %d bytes, CRC: 0x%08x)", 
+                           text, width, height, data_size, data_crc)
             else:
-                _LOGGER.error("Failed to send text image")
+                _LOGGER.error("Failed to send PNG command")
             return success
             
         except Exception as err:
