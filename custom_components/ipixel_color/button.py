@@ -12,7 +12,7 @@ from homeassistant.helpers.entity import DeviceInfo
 
 from .api import iPIXELAPI
 from .const import DOMAIN, CONF_ADDRESS, CONF_NAME
-from .common import resolve_template_variables
+from .common import update_ipixel_display
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -68,104 +68,7 @@ class iPIXELUpdateButton(ButtonEntity):
     async def async_press(self) -> None:
         """Handle button press to update display."""
         _LOGGER.debug("Manual display update triggered")
-        
-        try:
-            # Get current text from text entity
-            text = await self._get_current_text()
-            if not text:
-                _LOGGER.warning("No text to display - skipping update")
-                return
-            
-            # Get font settings from other entities
-            font_name = await self._get_font_setting()
-            font_size = await self._get_font_size_setting()
-            antialias = await self._get_antialiasing_setting()
-            line_spacing = await self._get_line_spacing_setting()
-            
-            # Connect if needed
-            if not self._api.is_connected:
-                _LOGGER.debug("Reconnecting to device for manual update")
-                await self._api.connect()
-            
-            # Resolve templates and process escape sequences before sending to display
-            template_resolved = await resolve_template_variables(self.hass, text)
-            processed_text = template_resolved.replace('\\n', '\n').replace('\\t', '\t')
-            
-            # Send text to display with current settings
-            success = await self._api.display_text(processed_text, antialias, font_size, font_name, line_spacing)
-            
-            if success:
-                _LOGGER.info("Manual display update successful: %s (font: %s, size: %s, antialias: %s, spacing: %spx)", 
-                           processed_text, font_name or "Default", 
-                           f"{font_size:.1f}px" if font_size else "Auto", antialias, line_spacing)
-            else:
-                _LOGGER.error("Manual display update failed")
-                
-        except Exception as err:
-            _LOGGER.error("Error during manual display update: %s", err)
-
-    async def _get_current_text(self) -> str | None:
-        """Get the current text from the text entity."""
-        try:
-            # Get the text entity
-            entity_id = f"text.{self._name.lower().replace(' ', '_')}_display"
-            state = self.hass.states.get(entity_id)
-            if state and state.state not in ("unknown", "unavailable", ""):
-                # Return raw text - processing will be done in _update_display
-                return state.state
-        except Exception as err:
-            _LOGGER.debug("Could not get current text: %s", err)
-        return None
-
-    async def _get_font_setting(self) -> str | None:
-        """Get the current font setting from the font select entity."""
-        try:
-            # Get the font select entity
-            entity_id = f"select.{self._name.lower().replace(' ', '_')}_font"
-            state = self.hass.states.get(entity_id)
-            if state and state.state != "Default":
-                return state.state
-        except Exception as err:
-            _LOGGER.debug("Could not get font setting: %s", err)
-        return None
-
-    async def _get_font_size_setting(self) -> float | None:
-        """Get the current font size setting from the number entity."""
-        try:
-            # Get the font size number entity
-            entity_id = f"number.{self._name.lower().replace(' ', '_')}_font_size"
-            state = self.hass.states.get(entity_id)
-            if state and state.state not in ("unknown", "unavailable", ""):
-                size_value = float(state.state)
-                # Return None for 0 (auto-sizing), otherwise return the size
-                return None if size_value == 0 else size_value
-        except Exception as err:
-            _LOGGER.debug("Could not get font size setting: %s", err)
-        return None
-
-    async def _get_antialiasing_setting(self) -> bool:
-        """Get the current antialiasing setting from the switch entity."""
-        try:
-            # Get the antialiasing switch entity
-            entity_id = f"switch.{self._name.lower().replace(' ', '_')}_antialiasing"
-            state = self.hass.states.get(entity_id)
-            if state:
-                return state.state == "on"
-        except Exception as err:
-            _LOGGER.debug("Could not get antialiasing setting: %s", err)
-        return True  # Default to antialiasing enabled
-
-    async def _get_line_spacing_setting(self) -> int:
-        """Get the current line spacing setting from the number entity."""
-        try:
-            # Get the line spacing number entity
-            entity_id = f"number.{self._name.lower().replace(' ', '_')}_line_spacing"
-            state = self.hass.states.get(entity_id)
-            if state and state.state not in ("unknown", "unavailable", ""):
-                return int(float(state.state))
-        except Exception as err:
-            _LOGGER.debug("Could not get line spacing setting: %s", err)
-        return 0  # Default to no extra spacing
+        await update_ipixel_display(self.hass, self._name, self._api)
 
     @property
     def available(self) -> bool:

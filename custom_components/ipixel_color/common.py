@@ -33,3 +33,112 @@ async def resolve_template_variables(hass: HomeAssistant, text: str) -> str:
     except Exception as e:
         _LOGGER.warning("Template error in '%s': %s", text, e)
         return text
+
+
+async def update_ipixel_display(hass: HomeAssistant, device_name: str, api, text: str = None) -> bool:
+    """Update iPIXEL display with current settings - can be called from anywhere.
+    
+    Args:
+        hass: Home Assistant instance
+        device_name: Device name for entity ID lookups
+        api: iPIXEL API instance
+        text: Text to display, or None to get from text entity
+        
+    Returns:
+        True if update was successful
+    """
+    try:
+        # Get current text if not provided
+        if text is None:
+            text_entity_id = f"text.{device_name.lower().replace(' ', '_')}_display"
+            text_state = hass.states.get(text_entity_id)
+            if not text_state or text_state.state in ("unknown", "unavailable", ""):
+                _LOGGER.warning("No text to display - skipping update")
+                return False
+            text = text_state.state
+        
+        # Get all current settings
+        font_name = await _get_entity_setting(hass, device_name, "select", "font")
+        font_size = await _get_entity_setting(hass, device_name, "number", "font_size", float)
+        line_spacing = await _get_entity_setting(hass, device_name, "number", "line_spacing", int)
+        antialias = await _get_entity_setting(hass, device_name, "switch", "antialiasing", bool)
+        
+        # Connect if needed
+        if not api.is_connected:
+            _LOGGER.debug("Reconnecting to device for display update")
+            await api.connect()
+        
+        # Resolve templates and process escape sequences
+        template_resolved = await resolve_template_variables(hass, text)
+        processed_text = template_resolved.replace('\\n', '\n').replace('\\t', '\t')
+        
+        # Send text to display with current settings
+        success = await api.display_text(processed_text, antialias, font_size, font_name, line_spacing)
+        
+        if success:
+            _LOGGER.info("Display update successful: %s (font: %s, size: %s, antialias: %s, spacing: %spx)", 
+                       processed_text, font_name or "Default", 
+                       f"{font_size:.1f}px" if font_size else "Auto", antialias, line_spacing)
+        else:
+            _LOGGER.error("Display update failed")
+            
+        return success
+        
+    except Exception as err:
+        _LOGGER.error("Error during display update: %s", err)
+        return False
+
+
+async def _get_entity_setting(hass: HomeAssistant, device_name: str, platform: str, setting: str, value_type=str):
+    """Get setting from Home Assistant entity.
+    
+    Args:
+        hass: Home Assistant instance
+        device_name: Device name for entity ID
+        platform: Platform type (select, number, switch)
+        setting: Setting name (font, font_size, etc.)
+        value_type: Type to convert value to
+        
+    Returns:
+        Entity value or appropriate default
+    """
+    try:
+        entity_id = f"{platform}.{device_name.lower().replace(' ', '_')}_{setting}"
+        state = hass.states.get(entity_id)
+        
+        if not state or state.state in ("unknown", "unavailable", ""):
+            return _get_default_value(setting, value_type)
+        
+        if value_type == bool:
+            return state.state == "on"
+        elif value_type == float:
+            value = float(state.state)
+            # Return None for 0 font size (auto-sizing)
+            return None if setting == "font_size" and value == 0 else value
+        elif value_type == int:
+            return int(float(state.state))
+        else:
+            # String value - return None for "Default" font
+            return None if setting == "font" and state.state == "Default" else state.state
+            
+    except Exception as err:
+        _LOGGER.debug("Could not get %s setting: %s", setting, err)
+        return _get_default_value(setting, value_type)
+
+
+def _get_default_value(setting: str, value_type):
+    """Get default value for a setting."""
+    defaults = {
+        "font": None,
+        "font_size": None,
+        "line_spacing": 0,
+        "antialiasing": True
+    }
+    default = defaults.get(setting)
+    
+    if value_type == bool and default is None:
+        return True
+    elif value_type in (int, float) and default is None:
+        return 0 if setting == "line_spacing" else None
+    
+    return default

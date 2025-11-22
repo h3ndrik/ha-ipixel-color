@@ -15,6 +15,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 
 from .api import iPIXELAPI
 from .const import DOMAIN, CONF_ADDRESS, CONF_NAME
+from .common import update_ipixel_display
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -117,18 +118,9 @@ class iPIXELFontSelect(SelectEntity, RestoreEntity):
             auto_update_state = self.hass.states.get(auto_update_entity_id)
             
             if auto_update_state and auto_update_state.state == "on":
-                # Get text entity and current text
-                text_entity_id = f"text.{self._name.lower().replace(' ', '_')}_display"
-                text_state = self.hass.states.get(text_entity_id)
-                
-                if text_state and text_state.state not in ("unknown", "unavailable", ""):
-                    # Trigger update button to refresh display
-                    update_button_entity_id = f"button.{self._name.lower().replace(' ', '_')}_update_display"
-                    await self.hass.services.async_call(
-                        "button", "press", 
-                        {"entity_id": update_button_entity_id}
-                    )
-                    _LOGGER.debug("Auto-update triggered display refresh due to font change")
+                # Use common update function directly
+                await update_ipixel_display(self.hass, self._name, self._api)
+                _LOGGER.debug("Auto-update triggered display refresh due to font change")
         except Exception as err:
             _LOGGER.debug("Could not trigger auto-update: %s", err)
 
