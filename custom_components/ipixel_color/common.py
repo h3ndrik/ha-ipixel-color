@@ -131,9 +131,12 @@ async def _update_textimage_mode(hass: HomeAssistant, device_name: str, api, tex
         from .color import rgb_to_hex
 
         # Get text color from light entity using unique_id lookup
-        text_color_entity_id = get_entity_id_by_unique_id(hass, api._address, "text_color")
+        text_color_entity_id = get_entity_id_by_unique_id(hass, api._address, "text_color", "light")
+        _LOGGER.debug("Text color entity_id lookup: %s (address=%s)", text_color_entity_id, api._address)
         text_color_state = hass.states.get(text_color_entity_id) if text_color_entity_id else None
         if text_color_state:
+            _LOGGER.debug("Text color light state: %s, attributes: %s",
+                         text_color_state.state, text_color_state.attributes)
             # If light is off, interpret as black
             if text_color_state.state == "off":
                 text_color = "000000"
@@ -153,7 +156,8 @@ async def _update_textimage_mode(hass: HomeAssistant, device_name: str, api, tex
             text_color = "ffffff"  # Default to white
 
         # Get background color from light entity using unique_id lookup
-        bg_color_entity_id = get_entity_id_by_unique_id(hass, api._address, "background_color")
+        bg_color_entity_id = get_entity_id_by_unique_id(hass, api._address, "background_color", "light")
+        _LOGGER.debug("Background color entity_id lookup: %s (address=%s)", bg_color_entity_id, api._address)
         bg_color_state = hass.states.get(bg_color_entity_id) if bg_color_entity_id else None
         if bg_color_state:
             # If light is off, interpret as black
@@ -289,7 +293,8 @@ async def _update_text_mode(hass: HomeAssistant, device_name: str, api, text: st
         # Get text color from light entity using unique_id lookup
         from .color import rgb_to_hex
 
-        text_color_entity_id = get_entity_id_by_unique_id(hass, api._address, "text_color")
+        text_color_entity_id = get_entity_id_by_unique_id(hass, api._address, "text_color", "light")
+        _LOGGER.debug("Text mode - Text color entity_id lookup: %s (address=%s)", text_color_entity_id, api._address)
         text_color_state = hass.states.get(text_color_entity_id) if text_color_entity_id else None
         if text_color_state:
             _LOGGER.debug("Text color light state: %s, attributes: %s",
