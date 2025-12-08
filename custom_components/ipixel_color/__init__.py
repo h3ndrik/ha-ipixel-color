@@ -26,8 +26,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     _LOGGER.debug("Setting up iPIXEL Color for %s (%s)", name, address)
     
-    # Create API instance
-    api = iPIXELAPI(address)
+    # Create API instance with hass for Bluetooth proxy support
+    api = iPIXELAPI(hass, address)
     
     # Test connection
     try:

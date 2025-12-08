@@ -31,8 +31,9 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
     """
     address = data[CONF_ADDRESS]
-    
-    api = iPIXELAPI(address)
+
+    # Create API instance with hass for Bluetooth proxy support
+    api = iPIXELAPI(hass, address)
     
     try:
         # Test connection

@@ -3,7 +3,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
 
 from .bluetooth.client import BluetoothClient
 from .bluetooth.scanner import discover_ipixel_devices
@@ -24,10 +27,15 @@ _LOGGER = logging.getLogger(__name__)
 class iPIXELAPI:
     """iPIXEL Color device API client - simplified facade."""
 
-    def __init__(self, address: str) -> None:
-        """Initialize the API client."""
+    def __init__(self, hass: HomeAssistant, address: str) -> None:
+        """Initialize the API client.
+
+        Args:
+            hass: Home Assistant instance
+            address: Bluetooth MAC address
+        """
         self._address = address
-        self._bluetooth = BluetoothClient(address)
+        self._bluetooth = BluetoothClient(hass, address)
         self._power_state = False
         self._device_info: dict[str, Any] | None = None
         self._device_response: bytes | None = None
