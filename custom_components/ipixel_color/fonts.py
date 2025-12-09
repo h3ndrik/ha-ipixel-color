@@ -41,6 +41,8 @@ def get_font_locations() -> list[Path]:
         Path("/usr/share/fonts"),
         Path("/usr/local/share/fonts"),
         Path.home() / ".fonts",
+        Path.home() / "fonts",
+        Path.home() / "homeassistant/fonts",
         Path.home() / ".local/share/fonts",
     ]
 
