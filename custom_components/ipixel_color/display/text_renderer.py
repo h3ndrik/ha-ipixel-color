@@ -49,6 +49,9 @@ def render_text_to_png(text: str, width: int, height: int, antialias: bool = Tru
     init_zero = (0,0,0) if antialias else 0
     gray_zero = 0
 
+    if font_size == 0:
+        font_size = None
+
     if not antialias:
         img = Image.new(image_mode, (width, height), init_zero)  # 1-bit pixels, black background
     else:
