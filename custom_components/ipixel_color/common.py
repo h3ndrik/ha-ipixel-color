@@ -6,9 +6,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.template import Template
 from homeassistant.helpers import entity_registry as er
 from .const import MODE_TEXT_IMAGE, MODE_TEXT, MODE_CLOCK, DOMAIN
-from .color import rgb_to_hex
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def rgb_to_hex(r: int, g: int, b: int) -> str:
+    """Convert RGB tuple to hex color string."""
+    return f"{r:02x}{g:02x}{b:02x}"
 
 
 def get_color_from_light_entity(hass: HomeAssistant, address: str, entity_suffix: str, default: str | None = None) -> str | None:

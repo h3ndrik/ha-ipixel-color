@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from .api import iPIXELAPI
 
 from .const import DOMAIN
-from .common import get_entity_id_by_unique_id
+from .common import get_entity_id_by_unique_id, rgb_to_hex
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,20 +45,6 @@ def hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
         return (r, g, b)
     except ValueError as e:
         raise ValueError(f"Invalid hex color format: {hex_color}") from e
-
-
-def rgb_to_hex(r: int, g: int, b: int) -> str:
-    """Convert RGB tuple to hex color string.
-
-    Args:
-        r: Red value (0-255)
-        g: Green value (0-255)
-        b: Blue value (0-255)
-
-    Returns:
-        Hex color string (e.g., 'ffffff')
-    """
-    return f"{r:02x}{g:02x}{b:02x}"
 
 
 def hex_to_rgb_normalized(hex_color: str) -> tuple[float, float, float]:
