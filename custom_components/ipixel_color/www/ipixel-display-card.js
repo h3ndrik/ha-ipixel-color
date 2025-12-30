@@ -1017,8 +1017,10 @@ class iPIXELDisplayCardEditor extends HTMLElement {
   render() {
     if (!this._hass) return;
 
+    // Show all text entities - iPIXEL devices may have various naming patterns
+    // (e.g., LED_BLE_*, ipixel_*, etc.)
     const entities = Object.keys(this._hass.states)
-      .filter(e => e.startsWith('text.') && e.includes('ipixel'))
+      .filter(e => e.startsWith('text.'))
       .sort();
 
     this.shadowRoot.innerHTML = `
