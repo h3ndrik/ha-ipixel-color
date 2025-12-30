@@ -375,3 +375,150 @@ set_time:
           min: 0
           max: 59
           mode: box
+
+# Enhanced Digital Signage Services
+
+create_playlist:
+  name: Create Playlist
+  description: Create a new playlist for content rotation
+  target:
+    entity:
+      integration: ipixel_color
+      domain: switch
+  fields:
+    name:
+      name: Playlist Name
+      description: Name for the new playlist
+      required: true
+      example: "Morning Messages"
+      selector:
+        text:
+    loop:
+      name: Loop
+      description: Loop playlist when reaching end
+      required: false
+      default: true
+      selector:
+        boolean:
+    shuffle:
+      name: Shuffle
+      description: Randomize playback order
+      required: false
+      default: false
+      selector:
+        boolean:
+
+start_playlist:
+  name: Start Playlist
+  description: Start playing a playlist with per-item durations
+  target:
+    entity:
+      integration: ipixel_color
+      domain: switch
+  fields:
+    playlist_id:
+      name: Playlist ID
+      description: ID of playlist to start (optional, uses active playlist if not specified)
+      required: false
+      selector:
+        text:
+
+stop_playlist:
+  name: Stop Playlist
+  description: Stop the currently playing playlist
+  target:
+    entity:
+      integration: ipixel_color
+      domain: switch
+
+set_power_schedule:
+  name: Set Power Schedule
+  description: Configure automatic power on/off times
+  target:
+    entity:
+      integration: ipixel_color
+      domain: switch
+  fields:
+    enabled:
+      name: Enabled
+      description: Enable power scheduling
+      required: false
+      default: true
+      selector:
+        boolean:
+    on_time:
+      name: Power On Time
+      description: Time to turn display on (HH:MM format)
+      required: false
+      default: "07:00"
+      example: "07:00"
+      selector:
+        time:
+    off_time:
+      name: Power Off Time
+      description: Time to turn display off (HH:MM format)
+      required: false
+      default: "22:00"
+      example: "22:00"
+      selector:
+        time:
+    days:
+      name: Days
+      description: Days of week (mon, tue, wed, thu, fri, sat, sun)
+      required: false
+      example: '["mon", "tue", "wed", "thu", "fri"]'
+      selector:
+        object:
+
+add_time_slot:
+  name: Add Time Slot
+  description: Schedule a playlist to play at specific times
+  target:
+    entity:
+      integration: ipixel_color
+      domain: switch
+  fields:
+    name:
+      name: Slot Name
+      description: Name for this time slot
+      required: true
+      example: "Morning Shift"
+      selector:
+        text:
+    playlist_id:
+      name: Playlist ID
+      description: ID of playlist to play during this slot
+      required: true
+      selector:
+        text:
+    start_time:
+      name: Start Time
+      description: When to start this playlist (HH:MM format)
+      required: true
+      example: "08:00"
+      selector:
+        time:
+    end_time:
+      name: End Time
+      description: When to stop this playlist (HH:MM format)
+      required: true
+      example: "12:00"
+      selector:
+        time:
+    days:
+      name: Days
+      description: Days of week for this slot
+      required: false
+      example: '["mon", "tue", "wed", "thu", "fri"]'
+      selector:
+        object:
+    priority:
+      name: Priority
+      description: Higher priority slots override lower ones
+      required: false
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 100
+          mode: box

@@ -44,6 +44,12 @@ SERVICE_DELETE_SLOT = "delete_slot"
 SERVICE_SET_BRIGHTNESS = "set_brightness"
 SERVICE_SET_CLOCK_MODE = "set_clock_mode"
 SERVICE_SET_TIME = "set_time"
+# Enhanced scheduling services
+SERVICE_CREATE_PLAYLIST = "create_playlist"
+SERVICE_START_PLAYLIST = "start_playlist"
+SERVICE_STOP_PLAYLIST = "stop_playlist"
+SERVICE_SET_POWER_SCHEDULE = "set_power_schedule"
+SERVICE_ADD_TIME_SLOT = "add_time_slot"
 
 # Type alias for iPIXEL config entries
 
@@ -311,6 +317,74 @@ async def _async_register_services(
         except Exception as err:
             _LOGGER.error("Error setting time: %s", err)
 
+    async def handle_create_playlist(call: ServiceCall) -> None:
+        """Handle create_playlist service call."""
+        name = call.data.get("name", "New Playlist")
+        loop = call.data.get("loop", True)
+        shuffle = call.data.get("shuffle", False)
+
+        try:
+            playlist_id = await schedule_manager.create_playlist(name, loop=loop, shuffle=shuffle)
+            _LOGGER.info("Created playlist '%s' (id=%s)", name, playlist_id)
+        except Exception as err:
+            _LOGGER.error("Error creating playlist: %s", err)
+
+    async def handle_start_playlist(call: ServiceCall) -> None:
+        """Handle start_playlist service call."""
+        playlist_id = call.data.get("playlist_id")
+
+        try:
+            success = await schedule_manager.start_playlist(playlist_id)
+            if success:
+                _LOGGER.info("Started playlist %s", playlist_id or "(active)")
+            else:
+                _LOGGER.error("Failed to start playlist")
+        except Exception as err:
+            _LOGGER.error("Error starting playlist: %s", err)
+
+    async def handle_stop_playlist(call: ServiceCall) -> None:
+        """Handle stop_playlist service call."""
+        try:
+            await schedule_manager.stop_playlist_loop()
+            _LOGGER.info("Playlist stopped")
+        except Exception as err:
+            _LOGGER.error("Error stopping playlist: %s", err)
+
+    async def handle_set_power_schedule(call: ServiceCall) -> None:
+        """Handle set_power_schedule service call."""
+        enabled = call.data.get("enabled", True)
+        on_time = call.data.get("on_time", "07:00")
+        off_time = call.data.get("off_time", "22:00")
+        days = call.data.get("days")
+
+        try:
+            await schedule_manager.set_power_schedule(enabled, on_time, off_time, days)
+            if enabled:
+                await schedule_manager.start_power_schedule_monitoring()
+            else:
+                schedule_manager.stop_power_schedule_monitoring()
+            _LOGGER.info("Power schedule configured: on=%s, off=%s", on_time, off_time)
+        except Exception as err:
+            _LOGGER.error("Error setting power schedule: %s", err)
+
+    async def handle_add_time_slot(call: ServiceCall) -> None:
+        """Handle add_time_slot service call."""
+        name = call.data.get("name", "Time Slot")
+        playlist_id = call.data.get("playlist_id", "")
+        start_time = call.data.get("start_time", "00:00")
+        end_time = call.data.get("end_time", "23:59")
+        days = call.data.get("days")
+        priority = call.data.get("priority", 0)
+
+        try:
+            slot_id = await schedule_manager.add_time_slot(
+                name, playlist_id, start_time, end_time, days, priority
+            )
+            await schedule_manager.start_time_slot_monitoring()
+            _LOGGER.info("Added time slot '%s' (id=%s)", name, slot_id)
+        except Exception as err:
+            _LOGGER.error("Error adding time slot: %s", err)
+
     # Register all services if not already registered
     if not hass.services.has_service(DOMAIN, SERVICE_UPLOAD_GIF):
         hass.services.async_register(DOMAIN, SERVICE_UPLOAD_GIF, handle_upload_gif)
@@ -340,6 +414,16 @@ async def _async_register_services(
         hass.services.async_register(DOMAIN, SERVICE_SET_CLOCK_MODE, handle_set_clock_mode)
     if not hass.services.has_service(DOMAIN, SERVICE_SET_TIME):
         hass.services.async_register(DOMAIN, SERVICE_SET_TIME, handle_set_time)
+    if not hass.services.has_service(DOMAIN, SERVICE_CREATE_PLAYLIST):
+        hass.services.async_register(DOMAIN, SERVICE_CREATE_PLAYLIST, handle_create_playlist)
+    if not hass.services.has_service(DOMAIN, SERVICE_START_PLAYLIST):
+        hass.services.async_register(DOMAIN, SERVICE_START_PLAYLIST, handle_start_playlist)
+    if not hass.services.has_service(DOMAIN, SERVICE_STOP_PLAYLIST):
+        hass.services.async_register(DOMAIN, SERVICE_STOP_PLAYLIST, handle_stop_playlist)
+    if not hass.services.has_service(DOMAIN, SERVICE_SET_POWER_SCHEDULE):
+        hass.services.async_register(DOMAIN, SERVICE_SET_POWER_SCHEDULE, handle_set_power_schedule)
+    if not hass.services.has_service(DOMAIN, SERVICE_ADD_TIME_SLOT):
+        hass.services.async_register(DOMAIN, SERVICE_ADD_TIME_SLOT, handle_add_time_slot)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
