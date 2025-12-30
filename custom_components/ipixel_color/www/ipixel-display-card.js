@@ -1,13 +1,27 @@
 /**
  * iPIXEL Cards for Home Assistant
  * Modular Lovelace cards for controlling iPIXEL Color LED displays
+ *
+ * Cards included:
+ * - ipixel-display-card: LED matrix preview with power control
+ * - ipixel-controls-card: Brightness, mode, and orientation controls
+ * - ipixel-text-card: Text input with effects and colors
+ * - ipixel-playlist-card: Playlist management
+ * - ipixel-schedule-card: Power schedule and time slots
+ *
+ * Source files in /cards folder for development reference.
+ * This bundled file is used by Home Assistant.
+ *
+ * @version 2.0.0
+ * @author iPIXEL Color Team
+ * @license MIT
  */
 
 const CARD_VERSION = '2.0.0';
 
-// ============================================================================
-// SHARED UTILITIES
-// ============================================================================
+// =============================================================================
+// SHARED STYLES
+// =============================================================================
 
 const iPIXELCardStyles = `
   :host {
@@ -18,9 +32,7 @@ const iPIXELCardStyles = `
     --ipixel-border: var(--divider-color, #333);
   }
 
-  .card-content {
-    padding: 16px;
-  }
+  .card-content { padding: 16px; }
 
   .card-header {
     display: flex;
@@ -53,9 +65,7 @@ const iPIXELCardStyles = `
     opacity: 0.8;
   }
 
-  .control-row {
-    margin-bottom: 12px;
-  }
+  .control-row { margin-bottom: 12px; }
 
   /* Buttons */
   .btn {
@@ -67,10 +77,7 @@ const iPIXELCardStyles = `
     font-weight: 500;
     transition: all 0.2s;
   }
-  .btn-primary {
-    background: var(--ipixel-primary);
-    color: #fff;
-  }
+  .btn-primary { background: var(--ipixel-primary); color: #fff; }
   .btn-primary:hover { opacity: 0.9; }
   .btn-secondary {
     background: rgba(255,255,255,0.1);
@@ -101,22 +108,19 @@ const iPIXELCardStyles = `
   .icon-btn svg { width: 20px; height: 20px; fill: currentColor; }
 
   /* Slider */
-  .slider-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .slider-label {
-    min-width: 70px;
-    font-size: 0.85em;
-  }
+  .slider-row { display: flex; align-items: center; gap: 12px; }
+  .slider-label { min-width: 70px; font-size: 0.85em; }
   .slider {
     flex: 1;
     -webkit-appearance: none;
     appearance: none;
     height: 8px;
     border-radius: 4px;
-    background: linear-gradient(to right, var(--ipixel-primary) 0%, var(--ipixel-primary) var(--value, 50%), rgba(255,255,255,0.25) var(--value, 50%), rgba(255,255,255,0.25) 100%);
+    background: linear-gradient(to right,
+      var(--ipixel-primary) 0%,
+      var(--ipixel-primary) var(--value, 50%),
+      rgba(255,255,255,0.25) var(--value, 50%),
+      rgba(255,255,255,0.25) 100%);
     outline: none;
     cursor: pointer;
   }
@@ -138,12 +142,7 @@ const iPIXELCardStyles = `
     border: 3px solid var(--ipixel-primary);
     cursor: pointer;
   }
-  .slider-value {
-    min-width: 40px;
-    text-align: right;
-    font-size: 0.85em;
-    font-weight: 500;
-  }
+  .slider-value { min-width: 40px; text-align: right; font-size: 0.85em; font-weight: 500; }
 
   /* Dropdown */
   .dropdown {
@@ -168,16 +167,10 @@ const iPIXELCardStyles = `
     font-size: 0.9em;
     box-sizing: border-box;
   }
-  .text-input:focus {
-    outline: none;
-    border-color: var(--ipixel-primary);
-  }
+  .text-input:focus { outline: none; border-color: var(--ipixel-primary); }
 
   /* Button Grid */
-  .button-grid {
-    display: grid;
-    gap: 8px;
-  }
+  .button-grid { display: grid; gap: 8px; }
   .button-grid-4 { grid-template-columns: repeat(4, 1fr); }
   .button-grid-3 { grid-template-columns: repeat(3, 1fr); }
   .button-grid-2 { grid-template-columns: repeat(2, 1fr); }
@@ -195,17 +188,10 @@ const iPIXELCardStyles = `
     transition: all 0.2s;
   }
   .mode-btn:hover { background: rgba(255,255,255,0.12); }
-  .mode-btn.active {
-    background: rgba(3, 169, 244, 0.25);
-    border-color: var(--ipixel-primary);
-  }
+  .mode-btn.active { background: rgba(3, 169, 244, 0.25); border-color: var(--ipixel-primary); }
 
   /* Color picker */
-  .color-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
+  .color-row { display: flex; align-items: center; gap: 12px; }
   .color-picker {
     width: 40px;
     height: 32px;
@@ -233,17 +219,17 @@ const iPIXELCardStyles = `
   .list-item-actions { display: flex; gap: 4px; }
 
   /* Empty state */
-  .empty-state {
-    text-align: center;
-    padding: 24px;
-    opacity: 0.6;
-    font-size: 0.9em;
-  }
+  .empty-state { text-align: center; padding: 24px; opacity: 0.6; font-size: 0.9em; }
 
   @media (max-width: 400px) {
     .button-grid-4 { grid-template-columns: repeat(2, 1fr); }
   }
 `;
+
+
+// =============================================================================
+// BASE CLASS
+// =============================================================================
 
 class iPIXELCardBase extends HTMLElement {
   constructor() {
@@ -259,9 +245,7 @@ class iPIXELCardBase extends HTMLElement {
   }
 
   setConfig(config) {
-    if (!config.entity) {
-      throw new Error('Please define an entity');
-    }
+    if (!config.entity) throw new Error('Please define an entity');
     this._config = config;
     this.render();
   }
@@ -288,57 +272,44 @@ class iPIXELCardBase extends HTMLElement {
   }
 
   getResolution() {
-    const widthEntity = this.getRelatedEntity('sensor', '_width') ||
-                        this._hass?.states['sensor.display_width'];
-    const heightEntity = this.getRelatedEntity('sensor', '_height') ||
-                         this._hass?.states['sensor.display_height'];
-
+    const widthEntity = this.getRelatedEntity('sensor', '_width') || this._hass?.states['sensor.display_width'];
+    const heightEntity = this.getRelatedEntity('sensor', '_height') || this._hass?.states['sensor.display_height'];
     if (widthEntity && heightEntity) {
-      const w = parseInt(widthEntity.state);
-      const h = parseInt(heightEntity.state);
-      if (!isNaN(w) && !isNaN(h) && w > 0 && h > 0) {
-        return [w, h];
-      }
+      const w = parseInt(widthEntity.state), h = parseInt(heightEntity.state);
+      if (!isNaN(w) && !isNaN(h) && w > 0 && h > 0) return [w, h];
     }
     return [64, 16];
   }
 
   isOn() {
-    const switchEntity = this.getRelatedEntity('switch');
-    return switchEntity?.state === 'on';
+    return this.getRelatedEntity('switch')?.state === 'on';
   }
 
-  render() {
-    // Override in subclasses
+  hexToRgb(hex) {
+    const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return r ? [parseInt(r[1], 16), parseInt(r[2], 16), parseInt(r[3], 16)] : [255, 255, 255];
   }
 
-  getCardSize() {
-    return 2;
-  }
+  render() { /* Override */ }
+  getCardSize() { return 2; }
 }
 
 
-// ============================================================================
-// 1. DISPLAY PREVIEW CARD
-// ============================================================================
+// =============================================================================
+// DISPLAY CARD
+// =============================================================================
 
 class iPIXELDisplayCard extends iPIXELCardBase {
   render() {
     if (!this._hass) return;
-
     const [width, height] = this.getResolution();
     const isOn = this.isOn();
-    const entity = this.getEntity();
-    const name = this._config.name || entity?.attributes?.friendly_name || 'iPIXEL Display';
-    const pixelCount = Math.min(width * height, 2048);
+    const name = this._config.name || this.getEntity()?.attributes?.friendly_name || 'iPIXEL Display';
+    const pixels = Math.min(width * height, 2048);
 
     this.shadowRoot.innerHTML = `
       <style>${iPIXELCardStyles}
-        .display-container {
-          background: #000;
-          border-radius: 8px;
-          padding: 8px;
-        }
+        .display-container { background: #000; border-radius: 8px; padding: 8px; }
         .display-grid {
           display: grid;
           grid-template-columns: repeat(${width}, 1fr);
@@ -348,21 +319,9 @@ class iPIXELDisplayCard extends iPIXELCardBase {
           overflow: hidden;
           aspect-ratio: ${width}/${height};
         }
-        .pixel {
-          background: #1a1a1a;
-          aspect-ratio: 1;
-        }
-        .pixel.on {
-          background: var(--pixel-color, #ff6600);
-          box-shadow: 0 0 2px var(--pixel-color, #ff6600);
-        }
-        .display-footer {
-          display: flex;
-          justify-content: space-between;
-          margin-top: 8px;
-          font-size: 0.75em;
-          opacity: 0.6;
-        }
+        .pixel { background: #1a1a1a; aspect-ratio: 1; }
+        .pixel.on { background: var(--pixel-color, #ff6600); box-shadow: 0 0 2px var(--pixel-color, #ff6600); }
+        .display-footer { display: flex; justify-content: space-between; margin-top: 8px; font-size: 0.75em; opacity: 0.6; }
       </style>
       <ha-card>
         <div class="card-content">
@@ -376,39 +335,29 @@ class iPIXELDisplayCard extends iPIXELCardBase {
             </button>
           </div>
           <div class="display-container">
-            <div class="display-grid">
-              ${Array(pixelCount).fill(0).map(() => `<div class="pixel ${isOn ? 'on' : ''}"></div>`).join('')}
-            </div>
-            <div class="display-footer">
-              <span>${width} x ${height}</span>
-              <span>${isOn ? 'Active' : 'Off'}</span>
-            </div>
+            <div class="display-grid">${Array(pixels).fill(0).map(() => `<div class="pixel ${isOn ? 'on' : ''}"></div>`).join('')}</div>
+            <div class="display-footer"><span>${width} x ${height}</span><span>${isOn ? 'Active' : 'Off'}</span></div>
           </div>
         </div>
-      </ha-card>
-    `;
+      </ha-card>`;
 
     this.shadowRoot.getElementById('power-btn')?.addEventListener('click', () => {
-      const switchEntity = this.getRelatedEntity('switch');
-      if (switchEntity) {
-        this._hass.callService('switch', 'toggle', { entity_id: switchEntity.entity_id });
-      }
+      const sw = this.getRelatedEntity('switch');
+      if (sw) this._hass.callService('switch', 'toggle', { entity_id: sw.entity_id });
     });
   }
-
-  static getConfigElement() { return document.createElement('ipixel-display-card-editor'); }
+  static getConfigElement() { return document.createElement('ipixel-simple-editor'); }
   static getStubConfig() { return { entity: '' }; }
 }
 
 
-// ============================================================================
-// 2. CONTROLS CARD
-// ============================================================================
+// =============================================================================
+// CONTROLS CARD
+// =============================================================================
 
 class iPIXELControlsCard extends iPIXELCardBase {
   render() {
     if (!this._hass) return;
-
     const isOn = this.isOn();
 
     this.shadowRoot.innerHTML = `
@@ -432,7 +381,6 @@ class iPIXELControlsCard extends iPIXELCardBase {
               </button>
             </div>
           </div>
-
           <div class="section-title">Brightness</div>
           <div class="control-row">
             <div class="slider-row">
@@ -440,7 +388,6 @@ class iPIXELControlsCard extends iPIXELCardBase {
               <span class="slider-value" id="brightness-val">50%</span>
             </div>
           </div>
-
           <div class="section-title">Display Mode</div>
           <div class="control-row">
             <div class="button-grid button-grid-3">
@@ -451,7 +398,6 @@ class iPIXELControlsCard extends iPIXELCardBase {
               <button class="mode-btn" data-mode="rhythm">Rhythm</button>
             </div>
           </div>
-
           <div class="section-title">Orientation</div>
           <div class="control-row">
             <select class="dropdown" id="orientation">
@@ -462,36 +408,24 @@ class iPIXELControlsCard extends iPIXELCardBase {
             </select>
           </div>
         </div>
-      </ha-card>
-    `;
+      </ha-card>`;
 
-    this.attachListeners();
+    this._attachControlListeners();
   }
 
-  attachListeners() {
-    // Quick actions
+  _attachControlListeners() {
     this.shadowRoot.querySelectorAll('[data-action]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const action = e.currentTarget.dataset.action;
-        switch(action) {
-          case 'power':
-            const sw = this.getRelatedEntity('switch');
-            if (sw) this._hass.callService('switch', 'toggle', { entity_id: sw.entity_id });
-            break;
-          case 'clear':
-            this.callService('ipixel_color', 'clear_pixels');
-            break;
-          case 'clock':
-            this.callService('ipixel_color', 'set_clock_mode', { style: 1 });
-            break;
-          case 'sync':
-            this.callService('ipixel_color', 'sync_time');
-            break;
-        }
+        if (action === 'power') {
+          const sw = this.getRelatedEntity('switch');
+          if (sw) this._hass.callService('switch', 'toggle', { entity_id: sw.entity_id });
+        } else if (action === 'clear') this.callService('ipixel_color', 'clear_pixels');
+        else if (action === 'clock') this.callService('ipixel_color', 'set_clock_mode', { style: 1 });
+        else if (action === 'sync') this.callService('ipixel_color', 'sync_time');
       });
     });
 
-    // Brightness
     const slider = this.shadowRoot.getElementById('brightness');
     if (slider) {
       slider.style.setProperty('--value', `${slider.value}%`);
@@ -499,40 +433,23 @@ class iPIXELControlsCard extends iPIXELCardBase {
         e.target.style.setProperty('--value', `${e.target.value}%`);
         this.shadowRoot.getElementById('brightness-val').textContent = `${e.target.value}%`;
       });
-      slider.addEventListener('change', (e) => {
-        this.callService('ipixel_color', 'set_brightness', { level: parseInt(e.target.value) });
-      });
+      slider.addEventListener('change', (e) => this.callService('ipixel_color', 'set_brightness', { level: parseInt(e.target.value) }));
     }
 
-    // Mode buttons
     this.shadowRoot.querySelectorAll('[data-mode]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const mode = e.currentTarget.dataset.mode;
         const modeEntity = this.getRelatedEntity('select', '_mode');
-        if (modeEntity) {
-          this._hass.callService('select', 'select_option', {
-            entity_id: modeEntity.entity_id,
-            option: mode,
-          });
-        }
+        if (modeEntity) this._hass.callService('select', 'select_option', { entity_id: modeEntity.entity_id, option: mode });
         this.shadowRoot.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
         e.currentTarget.classList.add('active');
       });
     });
 
-    // Orientation
-    const orient = this.shadowRoot.getElementById('orientation');
-    if (orient) {
-      orient.addEventListener('change', (e) => {
-        const orientEntity = this.getRelatedEntity('select', '_orientation');
-        if (orientEntity) {
-          this._hass.callService('select', 'select_option', {
-            entity_id: orientEntity.entity_id,
-            option: e.target.value,
-          });
-        }
-      });
-    }
+    this.shadowRoot.getElementById('orientation')?.addEventListener('change', (e) => {
+      const orientEntity = this.getRelatedEntity('select', '_orientation');
+      if (orientEntity) this._hass.callService('select', 'select_option', { entity_id: orientEntity.entity_id, option: e.target.value });
+    });
   }
 
   static getConfigElement() { return document.createElement('ipixel-simple-editor'); }
@@ -540,9 +457,9 @@ class iPIXELControlsCard extends iPIXELCardBase {
 }
 
 
-// ============================================================================
-// 3. TEXT INPUT CARD
-// ============================================================================
+// =============================================================================
+// TEXT CARD
+// =============================================================================
 
 class iPIXELTextCard extends iPIXELCardBase {
   render() {
@@ -550,11 +467,7 @@ class iPIXELTextCard extends iPIXELCardBase {
 
     this.shadowRoot.innerHTML = `
       <style>${iPIXELCardStyles}
-        .input-row {
-          display: flex;
-          gap: 8px;
-          margin-bottom: 12px;
-        }
+        .input-row { display: flex; gap: 8px; margin-bottom: 12px; }
         .input-row .text-input { flex: 1; }
       </style>
       <ha-card>
@@ -564,20 +477,18 @@ class iPIXELTextCard extends iPIXELCardBase {
             <input type="text" class="text-input" id="text-input" placeholder="Enter text to display...">
             <button class="btn btn-primary" id="send-btn">Send</button>
           </div>
-
           <div class="section-title">Effect</div>
           <div class="control-row">
             <select class="dropdown" id="effect">
               <option value="fixed">Fixed</option>
-              <option value="scroll_ltr" selected>Scroll Left → Right</option>
-              <option value="scroll_rtl">Scroll Right → Left</option>
+              <option value="scroll_ltr" selected>Scroll Left to Right</option>
+              <option value="scroll_rtl">Scroll Right to Left</option>
               <option value="blink">Blink</option>
               <option value="breeze">Breeze</option>
               <option value="snow">Snow</option>
               <option value="laser">Laser</option>
             </select>
           </div>
-
           <div class="section-title">Speed</div>
           <div class="control-row">
             <div class="slider-row">
@@ -585,7 +496,6 @@ class iPIXELTextCard extends iPIXELCardBase {
               <span class="slider-value" id="speed-val">50</span>
             </div>
           </div>
-
           <div class="section-title">Colors</div>
           <div class="control-row">
             <div class="color-row">
@@ -596,14 +506,8 @@ class iPIXELTextCard extends iPIXELCardBase {
             </div>
           </div>
         </div>
-      </ha-card>
-    `;
+      </ha-card>`;
 
-    this.attachListeners();
-  }
-
-  attachListeners() {
-    // Speed slider
     const speed = this.shadowRoot.getElementById('speed');
     if (speed) {
       speed.style.setProperty('--value', `${speed.value}%`);
@@ -613,29 +517,18 @@ class iPIXELTextCard extends iPIXELCardBase {
       });
     }
 
-    // Send button
     this.shadowRoot.getElementById('send-btn')?.addEventListener('click', () => {
       const text = this.shadowRoot.getElementById('text-input')?.value;
-      const effect = this.shadowRoot.getElementById('effect')?.value;
-      const speedVal = parseInt(this.shadowRoot.getElementById('speed')?.value || '50');
-      const textColor = this.hexToRgb(this.shadowRoot.getElementById('text-color')?.value);
-      const bgColor = this.hexToRgb(this.shadowRoot.getElementById('bg-color')?.value);
-
       if (text) {
         this.callService('ipixel_color', 'display_text', {
           text,
-          effect,
-          speed: speedVal,
-          color_fg: textColor,
-          color_bg: bgColor,
+          effect: this.shadowRoot.getElementById('effect')?.value,
+          speed: parseInt(this.shadowRoot.getElementById('speed')?.value || '50'),
+          color_fg: this.hexToRgb(this.shadowRoot.getElementById('text-color')?.value),
+          color_bg: this.hexToRgb(this.shadowRoot.getElementById('bg-color')?.value),
         });
       }
     });
-  }
-
-  hexToRgb(hex) {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)] : [255, 255, 255];
   }
 
   static getConfigElement() { return document.createElement('ipixel-simple-editor'); }
@@ -643,65 +536,48 @@ class iPIXELTextCard extends iPIXELCardBase {
 }
 
 
-// ============================================================================
-// 4. PLAYLIST CARD
-// ============================================================================
+// =============================================================================
+// PLAYLIST CARD
+// =============================================================================
 
 class iPIXELPlaylistCard extends iPIXELCardBase {
   render() {
     if (!this._hass) return;
-
-    // TODO: Get actual playlist from schedule manager sensor/attribute
     const playlist = this._config.items || [];
 
     this.shadowRoot.innerHTML = `
       <style>${iPIXELCardStyles}
-        .playlist-actions {
-          display: flex;
-          gap: 8px;
-          margin-top: 12px;
-        }
+        .playlist-actions { display: flex; gap: 8px; margin-top: 12px; }
         .playlist-actions .btn { flex: 1; }
       </style>
       <ha-card>
         <div class="card-content">
-          <div class="card-header">
-            <div class="card-title">Playlist</div>
-          </div>
-
+          <div class="card-header"><div class="card-title">Playlist</div></div>
           <div id="playlist-items">
-            ${playlist.length === 0 ? `
-              <div class="empty-state">No playlist items yet</div>
-            ` : playlist.map((item, i) => `
-              <div class="list-item">
-                <div class="list-item-info">
-                  <div class="list-item-name">${item.name || `Item ${i + 1}`}</div>
-                  <div class="list-item-meta">${item.mode || 'text'} - ${(item.duration_ms || 5000) / 1000}s</div>
-                </div>
-                <div class="list-item-actions">
-                  <button class="icon-btn" data-action="delete" data-index="${i}" style="width:28px;height:28px;">
-                    <svg viewBox="0 0 24 24" style="width:16px;height:16px;"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/></svg>
-                  </button>
-                </div>
-              </div>
-            `).join('')}
+            ${playlist.length === 0 ? '<div class="empty-state">No playlist items yet</div>' :
+              playlist.map((item, i) => `
+                <div class="list-item">
+                  <div class="list-item-info">
+                    <div class="list-item-name">${item.name || `Item ${i + 1}`}</div>
+                    <div class="list-item-meta">${item.mode || 'text'} - ${(item.duration_ms || 5000) / 1000}s</div>
+                  </div>
+                  <div class="list-item-actions">
+                    <button class="icon-btn" style="width:28px;height:28px;">
+                      <svg viewBox="0 0 24 24" style="width:16px;height:16px;"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/></svg>
+                    </button>
+                  </div>
+                </div>`).join('')}
           </div>
-
           <div class="playlist-actions">
             <button class="btn btn-success" id="start-btn">▶ Start</button>
             <button class="btn btn-danger" id="stop-btn">■ Stop</button>
             <button class="btn btn-secondary" id="add-btn">+ Add</button>
           </div>
         </div>
-      </ha-card>
-    `;
+      </ha-card>`;
 
-    this.shadowRoot.getElementById('start-btn')?.addEventListener('click', () => {
-      this.callService('ipixel_color', 'start_playlist');
-    });
-    this.shadowRoot.getElementById('stop-btn')?.addEventListener('click', () => {
-      this.callService('ipixel_color', 'stop_playlist');
-    });
+    this.shadowRoot.getElementById('start-btn')?.addEventListener('click', () => this.callService('ipixel_color', 'start_playlist'));
+    this.shadowRoot.getElementById('stop-btn')?.addEventListener('click', () => this.callService('ipixel_color', 'stop_playlist'));
   }
 
   static getConfigElement() { return document.createElement('ipixel-simple-editor'); }
@@ -709,103 +585,52 @@ class iPIXELPlaylistCard extends iPIXELCardBase {
 }
 
 
-// ============================================================================
-// 5. SCHEDULE CARD
-// ============================================================================
+// =============================================================================
+// SCHEDULE CARD
+// =============================================================================
 
 class iPIXELScheduleCard extends iPIXELCardBase {
   render() {
     if (!this._hass) return;
-
     const now = new Date();
     const nowPos = ((now.getHours() * 60 + now.getMinutes()) / 1440) * 100;
 
     this.shadowRoot.innerHTML = `
       <style>${iPIXELCardStyles}
-        .timeline {
-          background: rgba(255,255,255,0.05);
-          border-radius: 6px;
-          padding: 12px;
-          margin-bottom: 12px;
-        }
-        .timeline-header {
-          display: flex;
-          justify-content: space-between;
-          font-size: 0.7em;
-          opacity: 0.5;
-          margin-bottom: 6px;
-        }
-        .timeline-bar {
-          height: 24px;
-          background: rgba(255,255,255,0.1);
-          border-radius: 4px;
-          position: relative;
-          overflow: hidden;
-        }
-        .timeline-now {
-          position: absolute;
-          width: 2px;
-          height: 100%;
-          background: #f44336;
-          left: ${nowPos}%;
-        }
-        .power-row {
-          display: flex;
-          gap: 12px;
-          align-items: center;
-        }
+        .timeline { background: rgba(255,255,255,0.05); border-radius: 6px; padding: 12px; margin-bottom: 12px; }
+        .timeline-header { display: flex; justify-content: space-between; font-size: 0.7em; opacity: 0.5; margin-bottom: 6px; }
+        .timeline-bar { height: 24px; background: rgba(255,255,255,0.1); border-radius: 4px; position: relative; overflow: hidden; }
+        .timeline-now { position: absolute; width: 2px; height: 100%; background: #f44336; left: ${nowPos}%; }
+        .power-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
         .power-row label { font-size: 0.85em; }
-        .power-row input[type="time"] {
-          padding: 6px 10px;
-          background: rgba(255,255,255,0.08);
-          border: 1px solid var(--ipixel-border);
-          border-radius: 4px;
-          color: inherit;
-        }
+        .power-row input[type="time"] { padding: 6px 10px; background: rgba(255,255,255,0.08); border: 1px solid var(--ipixel-border); border-radius: 4px; color: inherit; }
       </style>
       <ha-card>
         <div class="card-content">
           <div class="section-title">Today's Timeline</div>
           <div class="timeline">
-            <div class="timeline-header">
-              <span>00:00</span>
-              <span>06:00</span>
-              <span>12:00</span>
-              <span>18:00</span>
-              <span>24:00</span>
-            </div>
-            <div class="timeline-bar">
-              <div class="timeline-now"></div>
-            </div>
+            <div class="timeline-header"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
+            <div class="timeline-bar"><div class="timeline-now"></div></div>
           </div>
-
           <div class="section-title">Power Schedule</div>
           <div class="control-row">
             <div class="power-row">
-              <label>On:</label>
-              <input type="time" id="power-on" value="07:00">
-              <label>Off:</label>
-              <input type="time" id="power-off" value="22:00">
+              <label>On:</label><input type="time" id="power-on" value="07:00">
+              <label>Off:</label><input type="time" id="power-off" value="22:00">
               <button class="btn btn-primary" id="save-power">Save</button>
             </div>
           </div>
-
           <div class="section-title">Time Slots</div>
-          <div id="time-slots">
-            <div class="empty-state">No time slots configured</div>
-          </div>
+          <div id="time-slots"><div class="empty-state">No time slots configured</div></div>
           <button class="btn btn-secondary" id="add-slot" style="width: 100%; margin-top: 8px;">+ Add Time Slot</button>
         </div>
-      </ha-card>
-    `;
+      </ha-card>`;
 
     this.shadowRoot.getElementById('save-power')?.addEventListener('click', () => {
-      const onTime = this.shadowRoot.getElementById('power-on')?.value;
-      const offTime = this.shadowRoot.getElementById('power-off')?.value;
       this.callService('ipixel_color', 'set_power_schedule', {
         enabled: true,
-        on_time: onTime,
-        off_time: offTime,
+        on_time: this.shadowRoot.getElementById('power-on')?.value,
+        off_time: this.shadowRoot.getElementById('power-off')?.value,
       });
     });
   }
@@ -815,25 +640,18 @@ class iPIXELScheduleCard extends iPIXELCardBase {
 }
 
 
-// ============================================================================
-// SIMPLE EDITOR (shared by all cards)
-// ============================================================================
+// =============================================================================
+// EDITOR
+// =============================================================================
 
 class iPIXELSimpleEditor extends HTMLElement {
-  constructor() {
-    super();
-    this.attachShadow({ mode: 'open' });
-  }
-
+  constructor() { super(); this.attachShadow({ mode: 'open' }); }
   setConfig(config) { this._config = config; this.render(); }
   set hass(hass) { this._hass = hass; this.render(); }
 
   render() {
     if (!this._hass) return;
-
-    const entities = Object.keys(this._hass.states)
-      .filter(e => e.startsWith('text.') || e.startsWith('switch.'))
-      .sort();
+    const entities = Object.keys(this._hass.states).filter(e => e.startsWith('text.') || e.startsWith('switch.')).sort();
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -851,33 +669,23 @@ class iPIXELSimpleEditor extends HTMLElement {
       <div class="row">
         <label>Name (optional)</label>
         <input type="text" id="name" value="${this._config?.name || ''}" placeholder="Display name">
-      </div>
-    `;
+      </div>`;
 
-    this.shadowRoot.querySelectorAll('select, input').forEach(el => {
-      el.addEventListener('change', () => this.fireConfig());
-    });
+    this.shadowRoot.querySelectorAll('select, input').forEach(el => el.addEventListener('change', () => this.fireConfig()));
   }
 
   fireConfig() {
     this.dispatchEvent(new CustomEvent('config-changed', {
-      detail: {
-        config: {
-          type: this._config?.type || 'custom:ipixel-display-card',
-          entity: this.shadowRoot.getElementById('entity')?.value,
-          name: this.shadowRoot.getElementById('name')?.value || undefined,
-        }
-      },
-      bubbles: true,
-      composed: true,
+      detail: { config: { type: this._config?.type || 'custom:ipixel-display-card', entity: this.shadowRoot.getElementById('entity')?.value, name: this.shadowRoot.getElementById('name')?.value || undefined } },
+      bubbles: true, composed: true,
     }));
   }
 }
 
 
-// ============================================================================
-// REGISTER ALL CARDS
-// ============================================================================
+// =============================================================================
+// REGISTER CARDS
+// =============================================================================
 
 customElements.define('ipixel-display-card', iPIXELDisplayCard);
 customElements.define('ipixel-controls-card', iPIXELControlsCard);
@@ -886,7 +694,6 @@ customElements.define('ipixel-playlist-card', iPIXELPlaylistCard);
 customElements.define('ipixel-schedule-card', iPIXELScheduleCard);
 customElements.define('ipixel-simple-editor', iPIXELSimpleEditor);
 
-// Register with Home Assistant
 window.customCards = window.customCards || [];
 [
   { type: 'ipixel-display-card', name: 'iPIXEL Display', description: 'LED matrix preview with power control' },
@@ -894,16 +701,6 @@ window.customCards = window.customCards || [];
   { type: 'ipixel-text-card', name: 'iPIXEL Text', description: 'Text input with effects and colors' },
   { type: 'ipixel-playlist-card', name: 'iPIXEL Playlist', description: 'Playlist management' },
   { type: 'ipixel-schedule-card', name: 'iPIXEL Schedule', description: 'Power schedule and time slots' },
-].forEach(card => {
-  window.customCards.push({
-    ...card,
-    preview: true,
-    documentationURL: 'https://github.com/cagcoach/ha-ipixel-color',
-  });
-});
+].forEach(card => window.customCards.push({ ...card, preview: true, documentationURL: 'https://github.com/cagcoach/ha-ipixel-color' }));
 
-console.info(
-  `%c iPIXEL Cards %c ${CARD_VERSION} `,
-  'background: #03a9f4; color: #fff; padding: 2px 6px; border-radius: 4px 0 0 4px;',
-  'background: #333; color: #fff; padding: 2px 6px; border-radius: 0 4px 4px 0;'
-);
+console.info(`%c iPIXEL Cards %c ${CARD_VERSION} `, 'background:#03a9f4;color:#fff;padding:2px 6px;border-radius:4px 0 0 4px;', 'background:#333;color:#fff;padding:2px 6px;border-radius:0 4px 4px 0;');
