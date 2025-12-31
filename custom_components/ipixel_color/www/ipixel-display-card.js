@@ -12,12 +12,21 @@
  * Source files in /cards folder for development reference.
  * This bundled file is used by Home Assistant.
  *
- * @version 2.2.0
+ * @version 2.3.0
  * @author iPIXEL Color Team
  * @license MIT
  */
 
-const CARD_VERSION = '2.2.0';
+const CARD_VERSION = '2.3.0';
+
+// Shared state for display content (syncs between cards)
+window.iPIXELDisplayState = window.iPIXELDisplayState || {
+  text: '',
+  mode: 'text',
+  fgColor: '#ff6600',
+  bgColor: '#000000',
+  lastUpdate: 0
+};
 
 // =============================================================================
 // SHARED STYLES
@@ -326,6 +335,14 @@ class iPIXELDisplayCard extends iPIXELCardBase {
   constructor() {
     super();
     this._pixelFont = this._createPixelFont();
+
+    // Listen for display updates from other cards
+    this._handleDisplayUpdate = () => this.render();
+    window.addEventListener('ipixel-display-update', this._handleDisplayUpdate);
+  }
+
+  disconnectedCallback() {
+    window.removeEventListener('ipixel-display-update', this._handleDisplayUpdate);
   }
 
   // Simple 5x7 pixel font for common characters
@@ -405,16 +422,20 @@ class iPIXELDisplayCard extends iPIXELCardBase {
     const isOn = this.isOn();
     const name = this._config.name || this.getEntity()?.attributes?.friendly_name || 'iPIXEL Display';
 
-    // Get current display content
+    // Get current display content from shared state or entity
+    const sharedState = window.iPIXELDisplayState || {};
     const textEntity = this.getEntity();
-    const currentText = textEntity?.state || '';
+    const entityText = textEntity?.state || '';
     const modeEntity = this.getRelatedEntity('select', '_mode');
-    const currentMode = modeEntity?.state || 'text';
+    const currentMode = modeEntity?.state || sharedState.mode || 'text';
+
+    // Use shared state text if it's newer, otherwise use entity state
+    const currentText = sharedState.text || entityText;
 
     // Determine content and colors
     let displayText = '';
-    let fgColor = '#ff6600';
-    let bgColor = '#111';
+    let fgColor = sharedState.fgColor || '#ff6600';
+    let bgColor = sharedState.bgColor || '#111';
 
     if (!isOn) {
       displayText = '';
@@ -577,8 +598,17 @@ class iPIXELControlsCard extends iPIXELCardBase {
           } else {
             console.warn('iPIXEL: No power switch found for toggle');
           }
-        } else if (action === 'clear') this.callService('ipixel_color', 'clear_pixels');
-        else if (action === 'clock') this.callService('ipixel_color', 'set_clock_mode', { style: 1 });
+        } else if (action === 'clear') {
+          // Update shared state
+          window.iPIXELDisplayState = { text: '', mode: 'text', fgColor: '#ff6600', bgColor: '#000000', lastUpdate: Date.now() };
+          window.dispatchEvent(new CustomEvent('ipixel-display-update', { detail: window.iPIXELDisplayState }));
+          this.callService('ipixel_color', 'clear_pixels');
+        }
+        else if (action === 'clock') {
+          window.iPIXELDisplayState = { text: '', mode: 'clock', fgColor: '#00ff88', bgColor: '#000000', lastUpdate: Date.now() };
+          window.dispatchEvent(new CustomEvent('ipixel-display-update', { detail: window.iPIXELDisplayState }));
+          this.callService('ipixel_color', 'set_clock_mode', { style: 1 });
+        }
         else if (action === 'sync') this.callService('ipixel_color', 'sync_time');
       });
     });
@@ -676,13 +706,37 @@ class iPIXELTextCard extends iPIXELCardBase {
 
     this.shadowRoot.getElementById('send-btn')?.addEventListener('click', () => {
       const text = this.shadowRoot.getElementById('text-input')?.value;
+      const fgColorHex = this.shadowRoot.getElementById('text-color')?.value || '#ff6600';
+      const bgColorHex = this.shadowRoot.getElementById('bg-color')?.value || '#000000';
+
       if (text) {
+        // Update shared state so Display card can show it
+        window.iPIXELDisplayState = {
+          text: text,
+          mode: 'text',
+          fgColor: fgColorHex,
+          bgColor: bgColorHex,
+          lastUpdate: Date.now()
+        };
+
+        // Dispatch event to notify other cards
+        window.dispatchEvent(new CustomEvent('ipixel-display-update', { detail: window.iPIXELDisplayState }));
+
+        // Also update the text entity so it persists
+        if (this._config.entity) {
+          this._hass.callService('text', 'set_value', {
+            entity_id: this._config.entity,
+            value: text
+          });
+        }
+
+        // Send to device with effects
         this.callService('ipixel_color', 'display_text', {
           text,
           effect: this.shadowRoot.getElementById('effect')?.value,
           speed: parseInt(this.shadowRoot.getElementById('speed')?.value || '50'),
-          color_fg: this.hexToRgb(this.shadowRoot.getElementById('text-color')?.value),
-          color_bg: this.hexToRgb(this.shadowRoot.getElementById('bg-color')?.value),
+          color_fg: this.hexToRgb(fgColorHex),
+          color_bg: this.hexToRgb(bgColorHex),
         });
       }
     });
