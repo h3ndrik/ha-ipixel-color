@@ -140,8 +140,15 @@ export class LEDMatrixRenderer {
     }
 
     for (let i = 0; i < this.buffer.length; i++) {
-      const [r, g, b] = this.buffer[i];
-      const [pr, pg, pb] = this.prevBuffer[i];
+      const bufferItem = this.buffer[i];
+      const prevItem = this.prevBuffer[i];
+
+      // Skip if buffer item is undefined or not an array
+      if (!bufferItem || !Array.isArray(bufferItem)) continue;
+      if (!prevItem || !Array.isArray(prevItem)) continue;
+
+      const [r, g, b] = bufferItem;
+      const [pr, pg, pb] = prevItem;
 
       // Only update if changed
       if (r !== pr || g !== pg || b !== pb) {
