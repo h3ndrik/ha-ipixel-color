@@ -24,10 +24,14 @@ const fontLoadPromises = {};
 
 /**
  * Get the base URL for font files
- * Handles both HACS (/hacsfiles/) and manual (/local/) installation paths
+ * Handles HACS, manual installation, and local preview paths
  */
 function getFontUrl(fontName) {
-  // Try HACS path first (most common)
+  // Check if we're in local preview mode (not in Home Assistant)
+  if (window.location.pathname.includes('preview.html') || window.location.port === '8080') {
+    return `./fonts/${fontName}.ttf`;
+  }
+  // Try HACS path (most common in Home Assistant)
   return `/hacsfiles/ipixel_color/fonts/${fontName}.ttf`;
 }
 

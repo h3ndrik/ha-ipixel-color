@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iPIXEL Cards Preview</title>
+  <style>
+    :root {
+      --primary-color: #03a9f4;
+      --primary-text-color: #fff;
+      --secondary-text-color: rgba(255,255,255,0.7);
+      --card-background-color: #1c1c1c;
+      --ha-card-background: #1c1c1c;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: #111;
+      color: #fff;
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #333;
+    }
+
+    .header h1 {
+      margin: 0 0 8px 0;
+      font-size: 1.8em;
+      font-weight: 500;
+    }
+
+    .header p {
+      margin: 0;
+      color: rgba(255,255,255,0.6);
+      font-size: 0.9em;
+    }
+
+    .preview-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 20px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .card-wrapper {
+      background: #1a1a1a;
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .card-label {
+      font-size: 0.75em;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: rgba(255,255,255,0.5);
+      margin-bottom: 12px;
+    }
+
+    /* Mock ha-card styles */
+    ha-card {
+      display: block;
+      background: var(--card-background-color);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .controls-section {
+      background: #1a1a1a;
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 30px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .controls-section h3 {
+      margin: 0 0 16px 0;
+      font-size: 1em;
+      font-weight: 500;
+      color: rgba(255,255,255,0.8);
+    }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .control-row label {
+      min-width: 100px;
+      font-size: 0.85em;
+      color: rgba(255,255,255,0.7);
+    }
+
+    .control-row input[type="number"],
+    .control-row select {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid #333;
+      border-radius: 6px;
+      background: #222;
+      color: #fff;
+      font-size: 0.9em;
+    }
+
+    .control-row button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      background: var(--primary-color);
+      color: #fff;
+      cursor: pointer;
+      font-size: 0.9em;
+    }
+
+    .control-row button:hover {
+      background: #0288d1;
+    }
+
+    .log-section {
+      background: #0a0a0a;
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 30px;
+      max-width: 800px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .log-section h3 {
+      margin: 0 0 12px 0;
+      font-size: 0.9em;
+      color: rgba(255,255,255,0.6);
+    }
+
+    #service-log {
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 0.8em;
+      color: #0f0;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    #service-log .log-entry {
+      padding: 4px 0;
+      border-bottom: 1px solid #222;
+    }
+
+    #service-log .log-time {
+      color: #666;
+      margin-right: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>iPIXEL Cards Preview</h1>
+    <p>Development preview - test cards without Home Assistant</p>
+  </div>
+
+  <div class="preview-container">
+    <div class="card-wrapper">
+      <div class="card-label">Display Card</div>
+      <ipixel-display-card id="display-card"></ipixel-display-card>
+    </div>
+
+    <div class="card-wrapper">
+      <div class="card-label">Text Card</div>
+      <ipixel-text-card id="text-card"></ipixel-text-card>
+    </div>
+
+    <div class="card-wrapper">
+      <div class="card-label">Controls Card</div>
+      <ipixel-controls-card id="controls-card"></ipixel-controls-card>
+    </div>
+  </div>
+
+  <div class="controls-section">
+    <h3>Preview Settings</h3>
+    <div class="control-row">
+      <label>Width:</label>
+      <input type="number" id="preview-width" value="64" min="16" max="256">
+      <label>Height:</label>
+      <input type="number" id="preview-height" value="16" min="8" max="64">
+      <button onclick="updateResolution()">Apply</button>
+    </div>
+    <div class="control-row">
+      <label>Power:</label>
+      <select id="preview-power">
+        <option value="on">On</option>
+        <option value="off">Off</option>
+      </select>
+      <button onclick="togglePower()">Toggle</button>
+    </div>
+  </div>
+
+  <div class="log-section">
+    <h3>Service Calls Log</h3>
+    <div id="service-log"></div>
+  </div>
+
+  <script type="module">
+    // Mock Home Assistant API
+    const mockStates = {
+      'switch.ipixel_preview': {
+        state: 'on',
+        entity_id: 'switch.ipixel_preview',
+        attributes: { friendly_name: 'iPIXEL Preview' }
+      },
+      'text.ipixel_preview_text_display': {
+        state: 'Hello',
+        entity_id: 'text.ipixel_preview_text_display',
+        attributes: { friendly_name: 'iPIXEL Text' }
+      },
+      'sensor.ipixel_preview_width': {
+        state: '64',
+        entity_id: 'sensor.ipixel_preview_width',
+        attributes: { friendly_name: 'Display Width' }
+      },
+      'sensor.ipixel_preview_height': {
+        state: '16',
+        entity_id: 'sensor.ipixel_preview_height',
+        attributes: { friendly_name: 'Display Height' }
+      },
+      'select.ipixel_preview_mode': {
+        state: 'text',
+        entity_id: 'select.ipixel_preview_mode',
+        attributes: {
+          friendly_name: 'Display Mode',
+          options: ['text', 'textimage', 'clock', 'gif', 'rhythm']
+        }
+      },
+      'number.ipixel_preview_brightness': {
+        state: '50',
+        entity_id: 'number.ipixel_preview_brightness',
+        attributes: {
+          friendly_name: 'Brightness',
+          min: 1,
+          max: 100
+        }
+      },
+      'switch.ipixel_preview_upside_down': {
+        state: 'off',
+        entity_id: 'switch.ipixel_preview_upside_down',
+        attributes: { friendly_name: 'Upside Down' }
+      }
+    };
+
+    // Service log
+    function logService(domain, service, data) {
+      const logEl = document.getElementById('service-log');
+      const time = new Date().toLocaleTimeString();
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.innerHTML = `<span class="log-time">${time}</span>${domain}.${service}: ${JSON.stringify(data)}`;
+      logEl.insertBefore(entry, logEl.firstChild);
+
+      // Keep only last 20 entries
+      while (logEl.children.length > 20) {
+        logEl.removeChild(logEl.lastChild);
+      }
+    }
+
+    // Mock hass object
+    const mockHass = {
+      states: mockStates,
+      callService: (domain, service, data) => {
+        console.log(`Service call: ${domain}.${service}`, data);
+        logService(domain, service, data);
+
+        // Handle some services
+        if (domain === 'switch' && service === 'toggle') {
+          const entityId = data.entity_id;
+          if (mockStates[entityId]) {
+            mockStates[entityId].state = mockStates[entityId].state === 'on' ? 'off' : 'on';
+            updateCards();
+          }
+        }
+        if (domain === 'text' && service === 'set_value') {
+          const entityId = data.entity_id;
+          if (mockStates[entityId]) {
+            mockStates[entityId].state = data.value;
+          }
+        }
+
+        return Promise.resolve();
+      },
+      callWS: (msg) => {
+        console.log('WebSocket call:', msg);
+        return Promise.resolve({});
+      },
+      connection: {
+        subscribeEvents: () => Promise.resolve(() => {}),
+      },
+      language: 'en',
+      locale: { language: 'en' }
+    };
+
+    // Update resolution
+    window.updateResolution = function() {
+      const width = document.getElementById('preview-width').value;
+      const height = document.getElementById('preview-height').value;
+      mockStates['sensor.ipixel_preview_width'].state = width;
+      mockStates['sensor.ipixel_preview_height'].state = height;
+
+      // Clear cached resolution
+      localStorage.removeItem('iPIXEL_Resolution');
+      localStorage.setItem('iPIXEL_Resolution', JSON.stringify([parseInt(width), parseInt(height)]));
+
+      updateCards();
+      logService('preview', 'set_resolution', { width, height });
+    };
+
+    // Toggle power
+    window.togglePower = function() {
+      const powerSelect = document.getElementById('preview-power');
+      const newState = powerSelect.value === 'on' ? 'off' : 'on';
+      powerSelect.value = newState;
+      mockStates['switch.ipixel_preview'].state = newState;
+      updateCards();
+      logService('switch', 'toggle', { entity_id: 'switch.ipixel_preview' });
+    };
+
+    // Update all cards
+    function updateCards() {
+      document.querySelectorAll('ipixel-display-card, ipixel-text-card, ipixel-controls-card').forEach(card => {
+        if (card.hass !== undefined) {
+          card.hass = { ...mockHass };
+        }
+      });
+    }
+
+    // Import and initialize cards
+    import('./src/index.js').then(() => {
+      console.log('iPIXEL Cards loaded');
+
+      // Configure cards
+      const displayCard = document.getElementById('display-card');
+      const textCard = document.getElementById('text-card');
+      const controlsCard = document.getElementById('controls-card');
+
+      // Set config
+      const config = {
+        entity: 'text.ipixel_preview_text_display',
+        name: 'iPIXEL Preview'
+      };
+
+      displayCard.setConfig(config);
+      textCard.setConfig(config);
+      controlsCard.setConfig(config);
+
+      // Set hass
+      displayCard.hass = mockHass;
+      textCard.hass = mockHass;
+      controlsCard.hass = mockHass;
+
+      console.log('Cards initialized');
+    }).catch(err => {
+      console.error('Failed to load cards:', err);
+      document.body.innerHTML += `<div style="color:red;padding:20px;">Error loading cards: ${err.message}</div>`;
+    });
+  </script>
+</body>
+</html>
