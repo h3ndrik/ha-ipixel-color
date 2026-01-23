@@ -251,6 +251,101 @@ export async function sendPixels(pixels, width, height) {
   console.log('iPIXEL BLE: Finished sending pixels');
 }
 
+/**
+ * Clear display immediately
+ */
+export async function clearDisplay() {
+  // Enter DIY mode and clear
+  await sendCommand([0x05, 0x00, 0x04, 0x01, 0x01]); // Enter DIY
+  await new Promise(r => setTimeout(r, 50));
+  // The device clears when entering DIY mode with specific flag
+}
+
+/**
+ * Delete a saved screen slot (1-10)
+ */
+export async function deleteScreen(slot) {
+  const s = Math.max(1, Math.min(10, slot));
+  // Erase data command: [length, 0x00, 0x02, 0x01, count_low, count_high, ...slots]
+  await sendCommand([0x07, 0x00, 0x02, 0x01, 0x01, 0x00, s]);
+}
+
+/**
+ * Set clock mode
+ * @param {number} style - Clock style (1-8)
+ * @param {boolean} format24 - Use 24-hour format
+ * @param {boolean} showDate - Show date
+ */
+export async function setClockMode(style = 1, format24 = true, showDate = false) {
+  const now = new Date();
+
+  // First sync time
+  await syncTime();
+  await new Promise(r => setTimeout(r, 100));
+
+  // Then set clock mode
+  // Command: [0x0b, 0x00, 0x06, 0x01, style, is24h, showDate, year, month, day, weekday]
+  await sendCommand([
+    0x0B, 0x00, 0x06, 0x01,
+    Math.max(1, Math.min(8, style)),
+    format24 ? 0x01 : 0x00,
+    showDate ? 0x01 : 0x00,
+    now.getFullYear() % 100,
+    now.getMonth() + 1,
+    now.getDate(),
+    now.getDay() || 7  // Sunday = 7, not 0
+  ]);
+}
+
+/**
+ * Set rhythm level mode (music visualization)
+ * @param {number} style - Style (0-4)
+ * @param {number[]} levels - Array of 11 level values (0-15 each)
+ */
+export async function setRhythmLevelMode(style = 0, levels = []) {
+  // Default levels if not provided
+  const l = levels.length === 11 ? levels : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+  // Command structure for rhythm level
+  const data = [
+    0x11, 0x00, 0x08, 0x01,  // Header
+    Math.max(0, Math.min(4, style)),
+    ...l.map(v => Math.max(0, Math.min(15, v)))
+  ];
+  await sendCommand(data);
+}
+
+/**
+ * Set rhythm animation mode
+ * @param {number} style - Style (0-1)
+ * @param {number} frame - Frame (0-7)
+ */
+export async function setRhythmAnimationMode(style = 0, frame = 0) {
+  await sendCommand([
+    0x06, 0x00, 0x09, 0x01,
+    Math.max(0, Math.min(1, style)),
+    Math.max(0, Math.min(7, frame))
+  ]);
+}
+
+/**
+ * Set orientation/rotation
+ * @param {number} orientation - 0=normal, 1=180°, 2=mirror
+ */
+export async function setOrientation(orientation) {
+  const o = Math.max(0, Math.min(2, orientation));
+  await sendCommand([0x05, 0x00, 0x06, 0x80, o]);
+}
+
+/**
+ * Select a saved screen slot to display
+ * @param {number} slot - Screen slot (1-9)
+ */
+export async function selectScreen(slot) {
+  const s = Math.max(1, Math.min(9, slot));
+  await sendCommand([0x05, 0x00, 0x07, 0x80, s]);
+}
+
 // Export connection state for debugging
 export function getConnectionState() {
   return {

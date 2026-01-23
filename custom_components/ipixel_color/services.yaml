@@ -716,3 +716,44 @@ send_raw_command:
       example: "05 00 07 01 01"
       selector:
         text:
+
+# Password management (from ipixel-ctrl protocol)
+
+set_password:
+  name: Set Password
+  description: Enable or disable password protection on the device
+  target:
+    entity:
+      integration: ipixel_color
+      domain: switch
+  fields:
+    enabled:
+      name: Enabled
+      description: Enable password protection
+      required: true
+      default: true
+      selector:
+        boolean:
+    password:
+      name: Password
+      description: 6-digit password (e.g., '123456')
+      required: true
+      example: "123456"
+      selector:
+        text:
+
+verify_password:
+  name: Verify Password
+  description: Verify password on a password-protected device (required before other commands)
+  target:
+    entity:
+      integration: ipixel_color
+      domain: switch
+  fields:
+    password:
+      name: Password
+      description: 6-digit password to verify (e.g., '123456')
+      required: true
+      example: "123456"
+      selector:
+        text:

@@ -28,6 +28,8 @@ from .device.commands import (
     make_screen_command,
     make_diy_mode_command,
     make_raw_command,
+    make_set_password_command,
+    make_verify_password_command,
 )
 from .device.clock import make_clock_mode_command, make_time_command
 from .device.text import make_text_command
@@ -1011,6 +1013,62 @@ class iPIXELAPI:
 
         except Exception as err:
             _LOGGER.error("Error displaying image from URL %s: %s", url, err)
+            return False
+
+    async def set_password(self, enabled: bool, password: str) -> bool:
+        """Set device password protection.
+
+        Args:
+            enabled: True to enable password protection, False to disable
+            password: 6-digit password string (e.g., '123456')
+
+        Returns:
+            True if command was sent successfully
+        """
+        try:
+            command = make_set_password_command(enabled, password)
+            success = await self._bluetooth.send_command(command)
+
+            if success:
+                _LOGGER.info("Password protection %s", "enabled" if enabled else "disabled")
+            else:
+                _LOGGER.error("Failed to set password")
+            return success
+
+        except ValueError as err:
+            _LOGGER.error("Invalid password: %s", err)
+            return False
+        except Exception as err:
+            _LOGGER.error("Error setting password: %s", err)
+            return False
+
+    async def verify_password(self, password: str) -> bool:
+        """Verify device password.
+
+        This must be called after connecting to a password-protected device
+        before other commands will work.
+
+        Args:
+            password: 6-digit password string (e.g., '123456')
+
+        Returns:
+            True if password was verified successfully
+        """
+        try:
+            command = make_verify_password_command(password)
+            success = await self._bluetooth.send_command(command)
+
+            if success:
+                _LOGGER.info("Password verified successfully")
+            else:
+                _LOGGER.error("Password verification failed")
+            return success
+
+        except ValueError as err:
+            _LOGGER.error("Invalid password format: %s", err)
+            return False
+        except Exception as err:
+            _LOGGER.error("Error verifying password: %s", err)
             return False
 
     def _notification_handler(self, sender: Any, data: bytearray) -> None:

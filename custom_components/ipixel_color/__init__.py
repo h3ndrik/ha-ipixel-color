@@ -66,6 +66,9 @@ SERVICE_DISPLAY_IMAGE_URL = "display_image_url"
 SERVICE_SET_SCREEN = "set_screen"
 SERVICE_SET_DIY_MODE = "set_diy_mode"
 SERVICE_SEND_RAW_COMMAND = "send_raw_command"
+# Password management (from ipixel-ctrl protocol)
+SERVICE_SET_PASSWORD = "set_password"
+SERVICE_VERIFY_PASSWORD = "verify_password"
 
 # Frontend card registration flag
 FRONTEND_REGISTERED = False
@@ -649,6 +652,43 @@ async def _async_register_services(
         except Exception as err:
             _LOGGER.error("Error sending raw command: %s", err)
 
+    # Password management handlers
+
+    async def handle_set_password(call: ServiceCall) -> None:
+        """Handle set_password service call."""
+        enabled = call.data.get("enabled", True)
+        password = call.data.get("password", "")
+
+        if not password:
+            _LOGGER.error("No password provided for set_password")
+            return
+
+        try:
+            success = await api.set_password(enabled, password)
+            if success:
+                _LOGGER.info("Password protection %s", "enabled" if enabled else "disabled")
+            else:
+                _LOGGER.error("Failed to set password")
+        except Exception as err:
+            _LOGGER.error("Error setting password: %s", err)
+
+    async def handle_verify_password(call: ServiceCall) -> None:
+        """Handle verify_password service call."""
+        password = call.data.get("password", "")
+
+        if not password:
+            _LOGGER.error("No password provided for verify_password")
+            return
+
+        try:
+            success = await api.verify_password(password)
+            if success:
+                _LOGGER.info("Password verified successfully")
+            else:
+                _LOGGER.error("Password verification failed")
+        except Exception as err:
+            _LOGGER.error("Error verifying password: %s", err)
+
     # Register all services if not already registered
     if not hass.services.has_service(DOMAIN, SERVICE_DISPLAY_TEXT):
         hass.services.async_register(DOMAIN, SERVICE_DISPLAY_TEXT, handle_display_text)
@@ -710,6 +750,11 @@ async def _async_register_services(
         hass.services.async_register(DOMAIN, SERVICE_SET_DIY_MODE, handle_set_diy_mode)
     if not hass.services.has_service(DOMAIN, SERVICE_SEND_RAW_COMMAND):
         hass.services.async_register(DOMAIN, SERVICE_SEND_RAW_COMMAND, handle_send_raw_command)
+    # Password management services (from ipixel-ctrl protocol)
+    if not hass.services.has_service(DOMAIN, SERVICE_SET_PASSWORD):
+        hass.services.async_register(DOMAIN, SERVICE_SET_PASSWORD, handle_set_password)
+    if not hass.services.has_service(DOMAIN, SERVICE_VERIFY_PASSWORD):
+        hass.services.async_register(DOMAIN, SERVICE_VERIFY_PASSWORD, handle_verify_password)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

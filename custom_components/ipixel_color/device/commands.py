@@ -383,3 +383,68 @@ def make_raw_command(hex_data: str) -> bytes:
         return bytes.fromhex(hex_clean)
     except ValueError as err:
         raise ValueError(f"Invalid hex data: {err}") from err
+
+
+def make_set_password_command(enabled: bool, password: str) -> bytes:
+    """Build command to set device password.
+
+    Command format from ipixel-ctrl (opcode 0x0204):
+    [length, 0, 0x04, 0x02, pwd_sw, pwd_1, pwd_2, pwd_3]
+
+    The password is a 6-digit number (e.g., '123456') split into 3 pairs:
+    - pwd_1 = first 2 digits as integer (12)
+    - pwd_2 = middle 2 digits as integer (34)
+    - pwd_3 = last 2 digits as integer (56)
+
+    Args:
+        enabled: True to enable password protection, False to disable
+        password: 6-digit password string (e.g., '123456')
+
+    Returns:
+        Command bytes for setting password
+
+    Raises:
+        ValueError: If password is not exactly 6 digits
+    """
+    # Validate password format
+    if not password or len(password) != 6:
+        raise ValueError("Password must be exactly 6 digits")
+    if not password.isdigit():
+        raise ValueError("Password must contain only digits")
+
+    pwd_sw = 0x01 if enabled else 0x00
+    pwd_1 = int(password[0:2])  # XX0000
+    pwd_2 = int(password[2:4])  # 00XX00
+    pwd_3 = int(password[4:6])  # 0000XX
+
+    return make_command_payload(0x0204, bytes([pwd_sw, pwd_1, pwd_2, pwd_3]))
+
+
+def make_verify_password_command(password: str) -> bytes:
+    """Build command to verify device password.
+
+    Command format from ipixel-ctrl (opcode 0x0205):
+    [length, 0, 0x05, 0x02, pwd_1, pwd_2, pwd_3]
+
+    The password is a 6-digit number split into 3 pairs.
+
+    Args:
+        password: 6-digit password string (e.g., '123456')
+
+    Returns:
+        Command bytes for verifying password
+
+    Raises:
+        ValueError: If password is not exactly 6 digits
+    """
+    # Validate password format
+    if not password or len(password) != 6:
+        raise ValueError("Password must be exactly 6 digits")
+    if not password.isdigit():
+        raise ValueError("Password must contain only digits")
+
+    pwd_1 = int(password[0:2])  # XX0000
+    pwd_2 = int(password[2:4])  # 00XX00
+    pwd_3 = int(password[4:6])  # 0000XX
+
+    return make_command_payload(0x0205, bytes([pwd_1, pwd_2, pwd_3]))
