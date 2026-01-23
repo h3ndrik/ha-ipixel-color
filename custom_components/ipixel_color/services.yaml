@@ -687,19 +687,28 @@ set_screen:
 
 set_diy_mode:
   name: Set DIY Mode
-  description: Enable or disable DIY mode for custom content creation
+  description: Control DIY mode with extended options for custom content creation
   target:
     entity:
       integration: ipixel_color
       domain: switch
   fields:
-    enable:
-      name: Enable
-      description: Enable DIY mode
+    mode:
+      name: Mode
+      description: "DIY mode option: 0=Exit (keep prev), 1=Enter (clear), 2=Exit (keep current), 3=Enter (preserve)"
       required: true
-      default: true
+      default: 1
       selector:
-        boolean:
+        select:
+          options:
+            - label: "Exit - Keep Previous Display"
+              value: "0"
+            - label: "Enter - Clear Display (Recommended)"
+              value: "1"
+            - label: "Exit - Keep Current Display"
+              value: "2"
+            - label: "Enter - Preserve Content"
+              value: "3"
 
 send_raw_command:
   name: Send Raw Command
@@ -757,3 +766,32 @@ verify_password:
       example: "123456"
       selector:
         text:
+
+# Mixed data command (0x0004 - combines PNG, GIF, and TEXT)
+
+send_mix_data:
+  name: Send Mixed Data
+  description: Send combined PNG/GIF/TEXT data to device (advanced, partially documented protocol)
+  target:
+    entity:
+      integration: ipixel_color
+      domain: switch
+  fields:
+    hex_data:
+      name: Hex Data
+      description: Raw mixed data blocks as hex string (block headers + content)
+      required: true
+      example: "8000 0000 0300 0060 1000 6400 0064 0000 <text_data>"
+      selector:
+        text:
+          multiline: true
+    screen_slot:
+      name: Screen Slot
+      description: Storage slot on device (1-255)
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 255
+          mode: box

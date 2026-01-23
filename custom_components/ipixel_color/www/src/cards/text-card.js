@@ -8,10 +8,34 @@ import { iPIXELCardStyles } from '../styles.js';
 import { updateDisplayState } from '../state.js';
 import { EFFECTS, EFFECT_CATEGORIES } from '../effects/index.js';
 
+// Rainbow mode names (0-9)
+const RAINBOW_MODES = [
+  { value: 0, name: 'None' },
+  { value: 1, name: 'Rainbow Wave' },
+  { value: 2, name: 'Rainbow Cycle' },
+  { value: 3, name: 'Rainbow Pulse' },
+  { value: 4, name: 'Rainbow Fade' },
+  { value: 5, name: 'Rainbow Chase' },
+  { value: 6, name: 'Rainbow Sparkle' },
+  { value: 7, name: 'Rainbow Gradient' },
+  { value: 8, name: 'Rainbow Theater' },
+  { value: 9, name: 'Rainbow Fire' }
+];
+
+// Rhythm visualization styles (0-4)
+const RHYTHM_STYLES = [
+  { value: 0, name: 'Classic Bars' },
+  { value: 1, name: 'Mirrored Bars' },
+  { value: 2, name: 'Center Out' },
+  { value: 3, name: 'Wave Style' },
+  { value: 4, name: 'Particle Style' }
+];
+
 export class iPIXELTextCard extends iPIXELCardBase {
   constructor() {
     super();
-    this._activeTab = 'text'; // 'text' or 'ambient'
+    this._activeTab = 'text'; // 'text', 'ambient', 'rhythm', or 'advanced'
+    this._rhythmLevels = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]; // 11 frequency bands
   }
 
   /**
@@ -63,23 +87,61 @@ export class iPIXELTextCard extends iPIXELCardBase {
       .join('');
   }
 
+  /**
+   * Build rainbow mode options for dropdown
+   */
+  _buildRainbowOptions() {
+    return RAINBOW_MODES.map(mode =>
+      `<option value="${mode.value}">${mode.name}</option>`
+    ).join('');
+  }
+
+  /**
+   * Build rhythm style grid
+   */
+  _buildRhythmStyleGrid() {
+    const selected = this._selectedRhythmStyle || 0;
+    return RHYTHM_STYLES.map(style => `
+      <button class="style-btn ${style.value === selected ? 'active' : ''}" data-style="${style.value}">
+        ${style.name}
+      </button>
+    `).join('');
+  }
+
+  /**
+   * Build rhythm level sliders (11 frequency bands)
+   */
+  _buildRhythmLevelSliders() {
+    const labels = ['32Hz', '64Hz', '125Hz', '250Hz', '500Hz', '1kHz', '2kHz', '4kHz', '8kHz', '12kHz', '16kHz'];
+    return this._rhythmLevels.map((level, i) => `
+      <div class="rhythm-band">
+        <label>${labels[i]}</label>
+        <input type="range" class="rhythm-slider" data-band="${i}" min="0" max="15" value="${level}">
+        <span class="rhythm-val">${level}</span>
+      </div>
+    `).join('');
+  }
+
   render() {
     if (!this._hass) return;
 
     const isTextTab = this._activeTab === 'text';
+    const isAmbientTab = this._activeTab === 'ambient';
+    const isRhythmTab = this._activeTab === 'rhythm';
+    const isAdvancedTab = this._activeTab === 'advanced';
 
     this.shadowRoot.innerHTML = `
       <style>${iPIXELCardStyles}
         .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
         .tab {
           flex: 1;
-          padding: 10px 16px;
+          padding: 10px 8px;
           border: none;
           background: rgba(255,255,255,0.05);
           color: var(--primary-text-color, #fff);
           cursor: pointer;
           border-radius: 8px;
-          font-size: 0.9em;
+          font-size: 0.8em;
           font-weight: 500;
           transition: all 0.2s ease;
         }
@@ -100,7 +162,7 @@ export class iPIXELTextCard extends iPIXELCardBase {
           gap: 8px;
           margin-bottom: 12px;
         }
-        .effect-btn {
+        .effect-btn, .style-btn {
           padding: 12px 8px;
           border: 1px solid rgba(255,255,255,0.1);
           background: rgba(255,255,255,0.05);
@@ -111,17 +173,67 @@ export class iPIXELTextCard extends iPIXELCardBase {
           text-align: center;
           transition: all 0.2s ease;
         }
-        .effect-btn:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); }
-        .effect-btn.active {
+        .effect-btn:hover, .style-btn:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); }
+        .effect-btn.active, .style-btn.active {
           background: var(--primary-color, #03a9f4);
           border-color: var(--primary-color, #03a9f4);
         }
+        .style-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 8px;
+          margin-bottom: 16px;
+        }
+        .rhythm-band {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 8px;
+        }
+        .rhythm-band label {
+          width: 50px;
+          font-size: 0.75em;
+          opacity: 0.8;
+        }
+        .rhythm-slider {
+          flex: 1;
+          height: 4px;
+        }
+        .rhythm-val {
+          width: 20px;
+          font-size: 0.75em;
+          text-align: right;
+        }
+        .rhythm-container {
+          max-height: 300px;
+          overflow-y: auto;
+          padding-right: 8px;
+        }
+        .gfx-textarea {
+          width: 100%;
+          min-height: 150px;
+          background: rgba(0,0,0,0.3);
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 8px;
+          color: var(--primary-text-color, #fff);
+          font-family: monospace;
+          font-size: 0.8em;
+          padding: 12px;
+          resize: vertical;
+        }
+        .gfx-textarea:focus {
+          outline: none;
+          border-color: var(--primary-color, #03a9f4);
+        }
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
       </style>
       <ha-card>
         <div class="card-content">
           <div class="tabs">
             <button class="tab ${isTextTab ? 'active' : ''}" id="tab-text">Text</button>
-            <button class="tab ${!isTextTab ? 'active' : ''}" id="tab-ambient">Ambient</button>
+            <button class="tab ${isAmbientTab ? 'active' : ''}" id="tab-ambient">Ambient</button>
+            <button class="tab ${isRhythmTab ? 'active' : ''}" id="tab-rhythm">Rhythm</button>
+            <button class="tab ${isAdvancedTab ? 'active' : ''}" id="tab-advanced">GFX</button>
           </div>
 
           <!-- Text Tab -->
@@ -131,11 +243,23 @@ export class iPIXELTextCard extends iPIXELCardBase {
               <input type="text" class="text-input" id="text-input" placeholder="Enter text to display...">
               <button class="btn btn-primary" id="send-btn">Send</button>
             </div>
-            <div class="section-title">Effect</div>
-            <div class="control-row">
-              <select class="dropdown" id="text-effect">
-                ${this._buildTextEffectOptions()}
-              </select>
+            <div class="two-col">
+              <div>
+                <div class="section-title">Effect</div>
+                <div class="control-row">
+                  <select class="dropdown" id="text-effect">
+                    ${this._buildTextEffectOptions()}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <div class="section-title">Rainbow Mode</div>
+                <div class="control-row">
+                  <select class="dropdown" id="rainbow-mode">
+                    ${this._buildRainbowOptions()}
+                  </select>
+                </div>
+              </div>
             </div>
             <div class="section-title">Speed</div>
             <div class="control-row">
@@ -164,7 +288,7 @@ export class iPIXELTextCard extends iPIXELCardBase {
           </div>
 
           <!-- Ambient Tab -->
-          <div class="tab-content ${!isTextTab ? 'active' : ''}" id="content-ambient">
+          <div class="tab-content ${isAmbientTab ? 'active' : ''}" id="content-ambient">
             <div class="section-title">Ambient Effect</div>
             <div class="effect-grid" id="ambient-grid">
               ${this._buildAmbientGrid()}
@@ -177,6 +301,43 @@ export class iPIXELTextCard extends iPIXELCardBase {
               </div>
             </div>
             <button class="btn btn-primary" id="apply-ambient-btn" style="width: 100%; margin-top: 8px;">Apply Effect</button>
+          </div>
+
+          <!-- Rhythm Tab -->
+          <div class="tab-content ${isRhythmTab ? 'active' : ''}" id="content-rhythm">
+            <div class="section-title">Visualization Style</div>
+            <div class="style-grid" id="rhythm-style-grid">
+              ${this._buildRhythmStyleGrid()}
+            </div>
+            <div class="section-title">Frequency Levels (0-15)</div>
+            <div class="rhythm-container">
+              ${this._buildRhythmLevelSliders()}
+            </div>
+            <button class="btn btn-primary" id="apply-rhythm-btn" style="width: 100%; margin-top: 12px;">Apply Rhythm</button>
+          </div>
+
+          <!-- Advanced/GFX Tab -->
+          <div class="tab-content ${isAdvancedTab ? 'active' : ''}" id="content-advanced">
+            <div class="section-title">GFX JSON Data</div>
+            <textarea class="gfx-textarea" id="gfx-json" placeholder='Enter GFX JSON data...
+Example:
+{
+  "width": 64,
+  "height": 16,
+  "pixels": [
+    {"x": 0, "y": 0, "color": "#ff0000"},
+    {"x": 1, "y": 0, "color": "#00ff00"}
+  ]
+}'></textarea>
+            <button class="btn btn-primary" id="apply-gfx-btn" style="width: 100%; margin-top: 12px;">Render GFX</button>
+            <div class="section-title" style="margin-top: 16px;">Per-Character Colors</div>
+            <div class="input-row">
+              <input type="text" class="text-input" id="multicolor-text" placeholder="Text (e.g., HELLO)">
+            </div>
+            <div class="input-row">
+              <input type="text" class="text-input" id="multicolor-colors" placeholder="Colors (e.g., #ff0000,#00ff00,#0000ff)">
+            </div>
+            <button class="btn btn-primary" id="apply-multicolor-btn" style="width: 100%; margin-top: 8px;">Send Multicolor Text</button>
           </div>
         </div>
       </ha-card>`;
@@ -191,11 +352,44 @@ export class iPIXELTextCard extends iPIXELCardBase {
     return {
       text: this.shadowRoot.getElementById('text-input')?.value || '',
       effect: this.shadowRoot.getElementById('text-effect')?.value || 'fixed',
+      rainbowMode: parseInt(this.shadowRoot.getElementById('rainbow-mode')?.value || '0'),
       speed: parseInt(this.shadowRoot.getElementById('text-speed')?.value || '50'),
       fgColor: this.shadowRoot.getElementById('text-color')?.value || '#ff6600',
       bgColor: this.shadowRoot.getElementById('bg-color')?.value || '#000000',
       font: this.shadowRoot.getElementById('font-select')?.value || 'VCR_OSD_MONO'
     };
+  }
+
+  /**
+   * Get rhythm tab form values
+   */
+  _getRhythmFormValues() {
+    return {
+      style: this._selectedRhythmStyle || 0,
+      levels: [...this._rhythmLevels]
+    };
+  }
+
+  /**
+   * Get GFX/advanced tab form values
+   */
+  _getGfxFormValues() {
+    const jsonText = this.shadowRoot.getElementById('gfx-json')?.value || '';
+    try {
+      return JSON.parse(jsonText);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
+   * Get multicolor text form values
+   */
+  _getMulticolorFormValues() {
+    const text = this.shadowRoot.getElementById('multicolor-text')?.value || '';
+    const colorsStr = this.shadowRoot.getElementById('multicolor-colors')?.value || '';
+    const colors = colorsStr.split(',').map(c => c.trim()).filter(c => c);
+    return { text, colors };
   }
 
   /**

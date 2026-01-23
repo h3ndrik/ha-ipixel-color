@@ -30,6 +30,12 @@ from .device.commands import (
     make_raw_command,
     make_set_password_command,
     make_verify_password_command,
+    make_mix_data_command,
+    make_mix_data_raw_command,
+    make_mix_block_header,
+    MIX_BLOCK_TYPE_TEXT,
+    MIX_BLOCK_TYPE_GIF,
+    MIX_BLOCK_TYPE_PNG,
 )
 from .device.clock import make_clock_mode_command, make_time_command
 from .device.text import make_text_command
@@ -894,27 +900,47 @@ class iPIXELAPI:
             _LOGGER.error("Error setting screen: %s", err)
             return False
 
-    async def set_diy_mode(self, enable: bool) -> bool:
-        """Enable or disable DIY mode.
+    async def set_diy_mode(self, mode: int | bool) -> bool:
+        """Set DIY mode with extended options.
 
         DIY mode allows custom pixel manipulation and content creation.
 
+        DIY Mode options:
+            0: QUIT_NOSAVE_KEEP_PREV  - Exit DIY mode, don't save, keep previous display
+            1: ENTER_CLEAR_CUR_SHOW   - Enter DIY mode, clear display
+            2: QUIT_STILL_CUR_SHOW    - Exit DIY mode, keep current display
+            3: ENTER_NO_CLEAR_CUR_SHOW - Enter DIY mode, preserve current content
+
         Args:
-            enable: True to enable DIY mode, False to disable
+            mode: DIY mode option (0-3), or bool for backwards compatibility
+                  True = mode 1 (enter + clear), False = mode 0 (exit + keep prev)
 
         Returns:
             True if command was sent successfully
         """
         try:
-            command = make_diy_mode_command(enable)
+            command = make_diy_mode_command(mode)
             success = await self._bluetooth.send_command(command)
 
+            mode_names = {
+                0: "exit (keep previous)",
+                1: "enter (clear display)",
+                2: "exit (keep current)",
+                3: "enter (preserve content)"
+            }
+            # Handle bool for logging
+            if isinstance(mode, bool):
+                mode = 1 if mode else 0
+
             if success:
-                _LOGGER.info("DIY mode %s", "enabled" if enable else "disabled")
+                _LOGGER.info("DIY mode set to: %s", mode_names.get(mode, str(mode)))
             else:
                 _LOGGER.error("Failed to set DIY mode")
             return success
 
+        except ValueError as err:
+            _LOGGER.error("Invalid DIY mode: %s", err)
+            return False
         except Exception as err:
             _LOGGER.error("Error setting DIY mode: %s", err)
             return False
@@ -1070,6 +1096,105 @@ class iPIXELAPI:
         except Exception as err:
             _LOGGER.error("Error verifying password: %s", err)
             return False
+
+    async def send_mix_data(
+        self,
+        blocks: list[tuple[bytes, bytes]],
+        screen_slot: int = 1
+    ) -> bool:
+        """Send mixed data (PNG + GIF + TEXT combined) to device.
+
+        This allows combining multiple content types into a single display,
+        each positioned at different areas of the screen.
+
+        Args:
+            blocks: List of (header, data) tuples. Each tuple contains:
+                    - header: 16-byte block header
+                    - data: Raw content data (PNG, GIF, or text bytes)
+            screen_slot: Storage slot on device (1-255)
+
+        Returns:
+            True if command was sent successfully
+        """
+        try:
+            command = make_mix_data_command(blocks, screen_slot)
+
+            # Use windowed transfer for large payloads
+            if len(command) > 244:
+                # Split into windows for large data
+                windows = self._split_into_windows(command)
+                success = await self._bluetooth.send_windowed_command(windows)
+            else:
+                success = await self._bluetooth.send_command(command)
+
+            if success:
+                _LOGGER.info("Mixed data sent: %d blocks to slot %d", len(blocks), screen_slot)
+            else:
+                _LOGGER.error("Failed to send mixed data")
+            return success
+
+        except ValueError as err:
+            _LOGGER.error("Invalid mixed data parameters: %s", err)
+            return False
+        except Exception as err:
+            _LOGGER.error("Error sending mixed data: %s", err)
+            return False
+
+    async def send_mix_data_raw(
+        self,
+        raw_hex_data: str,
+        screen_slot: int = 1
+    ) -> bool:
+        """Send pre-built mixed data from hex string.
+
+        This is for advanced users who want to send raw mixed data blocks
+        built manually or captured from other tools.
+
+        Args:
+            raw_hex_data: Hex string of mixed data (e.g., '8000 0000 0300...')
+            screen_slot: Storage slot on device (1-255)
+
+        Returns:
+            True if command was sent successfully
+        """
+        try:
+            # Parse hex string to bytes
+            hex_clean = raw_hex_data.replace(" ", "")
+            raw_data = bytes.fromhex(hex_clean)
+
+            command = make_mix_data_raw_command(raw_data, screen_slot)
+
+            # Use windowed transfer for large payloads
+            if len(command) > 244:
+                windows = self._split_into_windows(command)
+                success = await self._bluetooth.send_windowed_command(windows)
+            else:
+                success = await self._bluetooth.send_command(command)
+
+            if success:
+                _LOGGER.info("Raw mixed data sent: %d bytes to slot %d", len(raw_data), screen_slot)
+            else:
+                _LOGGER.error("Failed to send raw mixed data")
+            return success
+
+        except ValueError as err:
+            _LOGGER.error("Invalid hex data: %s", err)
+            return False
+        except Exception as err:
+            _LOGGER.error("Error sending raw mixed data: %s", err)
+            return False
+
+    def _split_into_windows(self, data: bytes, chunk_size: int = 244) -> list[bytes]:
+        """Split data into chunks for windowed transfer.
+
+        Args:
+            data: Data to split
+            chunk_size: Maximum size of each chunk
+
+        Returns:
+            List of data chunks
+        """
+        return [data[i:i + chunk_size] for i in range(0, len(data), chunk_size)]
 
     def _notification_handler(self, sender: Any, data: bytearray) -> None:
         """Handle notifications from the device."""

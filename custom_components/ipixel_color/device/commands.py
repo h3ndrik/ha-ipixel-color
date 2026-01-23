@@ -343,20 +343,34 @@ def make_screen_command(screen: int) -> bytes:
     return make_command_payload(0x8007, bytes([screen]))
 
 
-def make_diy_mode_command(enable: bool) -> bytes:
-    """Build command to enable/disable DIY mode.
+def make_diy_mode_command(mode: int) -> bytes:
+    """Build command to control DIY mode with extended options.
 
-    Command format from ipixel-ctrl (opcode 0x0104):
-    [length, 0, 0x04, 0x01, enable_byte]
+    Command format from ipixel-ctrl/ipixel-shader (opcode 0x0104):
+    [length, 0, 0x04, 0x01, mode_byte]
+
+    DIY Mode options (from ipixel-shader):
+        0: QUIT_NOSAVE_KEEP_PREV  - Exit DIY mode, don't save, keep previous display
+        1: ENTER_CLEAR_CUR_SHOW   - Enter DIY mode, clear display
+        2: QUIT_STILL_CUR_SHOW    - Exit DIY mode, keep current display
+        3: ENTER_NO_CLEAR_CUR_SHOW - Enter DIY mode, preserve current content
 
     Args:
-        enable: True to enable DIY mode, False to disable
+        mode: DIY mode option (0-3), or bool for backwards compatibility
+              True = mode 1 (enter + clear), False = mode 0 (exit + keep prev)
 
     Returns:
         Command bytes for DIY mode control
     """
-    enable_byte = 0x01 if enable else 0x00
-    return make_command_payload(0x0104, bytes([enable_byte]))
+    # Handle backwards compatibility with bool
+    if isinstance(mode, bool):
+        mode_byte = 0x01 if mode else 0x00
+    else:
+        if mode < 0 or mode > 3:
+            raise ValueError("DIY mode must be 0-3")
+        mode_byte = mode
+
+    return make_command_payload(0x0104, bytes([mode_byte]))
 
 
 def make_raw_command(hex_data: str) -> bytes:
@@ -448,3 +462,164 @@ def make_verify_password_command(password: str) -> bytes:
     pwd_3 = int(password[4:6])  # 0000XX
 
     return make_command_payload(0x0205, bytes([pwd_1, pwd_2, pwd_3]))
+
+
+# Mixed Data Block Types
+MIX_BLOCK_TYPE_TEXT = 0x8000
+MIX_BLOCK_TYPE_GIF = 0x0001  # Varies based on size
+MIX_BLOCK_TYPE_PNG = 0x0001
+
+
+def make_mix_block_header(
+    block_type: int,
+    data_size: int,
+    x: int = 0,
+    y: int = 0,
+    width: int = 32,
+    height: int = 32,
+    duration: int = 100
+) -> bytes:
+    """Build a block header for mixed data content.
+
+    Block header format (16 bytes) based on protocol examples:
+    - Bytes 0-1: Block type/size indicator (little-endian)
+    - Bytes 2-3: Reserved (0x0000)
+    - Bytes 4-5: Mode/flags
+    - Bytes 6-7: X position (little-endian)
+    - Bytes 8-9: Y position and flags
+    - Bytes 10-11: Width (little-endian)
+    - Bytes 12-13: Height (little-endian)
+    - Bytes 14-15: Duration or reserved
+
+    Note: Block header format is partially documented. This implementation
+    is based on reverse engineering the protocol examples.
+
+    Args:
+        block_type: Type of block (MIX_BLOCK_TYPE_TEXT, etc.)
+        data_size: Size of the data following this header
+        x: X position on display
+        y: Y position on display
+        width: Width of content area
+        height: Height of content area
+        duration: Display duration (0-100)
+
+    Returns:
+        16-byte block header
+    """
+    header = bytearray(16)
+
+    # Block type/size indicator (bytes 0-1)
+    if block_type == MIX_BLOCK_TYPE_TEXT:
+        header[0:2] = (0x8000).to_bytes(2, 'little')
+        header[4:6] = (0x0003).to_bytes(2, 'little')  # Text mode flag
+    else:
+        # For GIF/PNG, use data size in header
+        header[0:2] = (data_size & 0xFFFF).to_bytes(2, 'little')
+        header[4:6] = (0x0001).to_bytes(2, 'little')  # Image mode flag
+
+    # Reserved (bytes 2-3)
+    header[2:4] = (0x0000).to_bytes(2, 'little')
+
+    # Position X (bytes 6-7) - combined with Y offset
+    pos_combined = (y << 8) | (x & 0xFF)
+    header[6:8] = pos_combined.to_bytes(2, 'little')
+
+    # Width/Height (bytes 8-9)
+    size_combined = (height << 8) | (width & 0xFF)
+    header[8:10] = size_combined.to_bytes(2, 'little')
+
+    # Duration (bytes 10-11)
+    header[10:12] = duration.to_bytes(2, 'little')
+
+    # Reserved (bytes 12-15)
+    header[12:14] = (0x0064).to_bytes(2, 'little')  # Common value from examples
+    header[14:16] = (0x0000).to_bytes(2, 'little')
+
+    return bytes(header)
+
+
+def make_mix_data_command(
+    blocks: list[tuple[bytes, bytes]],
+    screen_slot: int = 1
+) -> bytes:
+    """Build command to send mixed data (PNG + GIF + TEXT combined).
+
+    Command format from ipixel-ctrl (opcode 0x0004):
+    [length, opcode, 0x00, data_size(4), crc32(4), 0x02, screen_slot, mix_data...]
+
+    Args:
+        blocks: List of (header, data) tuples. Each tuple contains:
+                - header: 16-byte block header (use make_mix_block_header)
+                - data: Raw content data (PNG bytes, GIF bytes, or text bytes)
+        screen_slot: Storage slot on device (1-255)
+
+    Returns:
+        Command bytes for mixed data upload
+
+    Raises:
+        ValueError: If blocks list is empty or screen_slot is invalid
+    """
+    import zlib
+
+    if not blocks:
+        raise ValueError("At least one block must be provided")
+    if screen_slot < 1 or screen_slot > 255:
+        raise ValueError("Screen slot must be 1-255")
+
+    # Build mixed data payload from all blocks
+    mix_data = bytearray()
+    for header, data in blocks:
+        mix_data.extend(header)
+        mix_data.extend(data)
+
+    # Calculate CRC32 of mix data
+    crc32 = zlib.crc32(mix_data) & 0xFFFFFFFF
+
+    # Build command payload
+    payload = bytearray()
+    payload.append(0x00)  # Unknown fixed byte
+    payload.extend(len(mix_data).to_bytes(4, 'little'))  # Data size
+    payload.extend(crc32.to_bytes(4, 'little'))          # CRC32
+    payload.append(0x02)  # Unknown fixed byte (0x02 for mix data)
+    payload.append(screen_slot)                          # Screen slot
+    payload.extend(mix_data)                             # Mixed data blocks
+
+    return make_command_payload(0x0004, bytes(payload))
+
+
+def make_mix_data_raw_command(
+    raw_mix_data: bytes,
+    screen_slot: int = 1
+) -> bytes:
+    """Build command to send pre-built mixed data.
+
+    This is for advanced users who want to send raw mixed data blocks
+    without using the block header builder.
+
+    Args:
+        raw_mix_data: Pre-built mixed data with headers
+        screen_slot: Storage slot on device (1-255)
+
+    Returns:
+        Command bytes for mixed data upload
+    """
+    import zlib
+
+    if not raw_mix_data:
+        raise ValueError("Mix data cannot be empty")
+    if screen_slot < 1 or screen_slot > 255:
+        raise ValueError("Screen slot must be 1-255")
+
+    # Calculate CRC32
+    crc32 = zlib.crc32(raw_mix_data) & 0xFFFFFFFF
+
+    # Build command payload
+    payload = bytearray()
+    payload.append(0x00)  # Unknown fixed byte
+    payload.extend(len(raw_mix_data).to_bytes(4, 'little'))  # Data size
+    payload.extend(crc32.to_bytes(4, 'little'))              # CRC32
+    payload.append(0x02)  # Unknown fixed byte
+    payload.append(screen_slot)                              # Screen slot
+    payload.extend(raw_mix_data)                             # Mixed data
+
+    return make_command_payload(0x0004, bytes(payload))

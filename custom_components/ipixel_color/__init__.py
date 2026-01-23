@@ -69,6 +69,8 @@ SERVICE_SEND_RAW_COMMAND = "send_raw_command"
 # Password management (from ipixel-ctrl protocol)
 SERVICE_SET_PASSWORD = "set_password"
 SERVICE_VERIFY_PASSWORD = "verify_password"
+# Mixed data command (from ipixel-ctrl protocol)
+SERVICE_SEND_MIX_DATA = "send_mix_data"
 
 # Frontend card registration flag
 FRONTEND_REGISTERED = False
@@ -624,12 +626,29 @@ async def _async_register_services(
 
     async def handle_set_diy_mode(call: ServiceCall) -> None:
         """Handle set_diy_mode service call."""
-        enable = call.data.get("enable", True)
+        # Support both old 'enable' bool and new 'mode' int parameter
+        mode_str = call.data.get("mode")
+        enable = call.data.get("enable")
+
+        if mode_str is not None:
+            mode = int(mode_str)
+        elif enable is not None:
+            # Backwards compatibility with bool
+            mode = 1 if enable else 0
+        else:
+            mode = 1  # Default to enter + clear
+
+        mode_names = {
+            0: "exit (keep previous)",
+            1: "enter (clear display)",
+            2: "exit (keep current)",
+            3: "enter (preserve content)"
+        }
 
         try:
-            success = await api.set_diy_mode(enable)
+            success = await api.set_diy_mode(mode)
             if success:
-                _LOGGER.info("DIY mode %s", "enabled" if enable else "disabled")
+                _LOGGER.info("DIY mode set to: %s", mode_names.get(mode, str(mode)))
             else:
                 _LOGGER.error("Failed to set DIY mode")
         except Exception as err:
@@ -688,6 +707,24 @@ async def _async_register_services(
                 _LOGGER.error("Password verification failed")
         except Exception as err:
             _LOGGER.error("Error verifying password: %s", err)
+
+    async def handle_send_mix_data(call: ServiceCall) -> None:
+        """Handle send_mix_data service call."""
+        hex_data = call.data.get("hex_data", "")
+        screen_slot = call.data.get("screen_slot", 1)
+
+        if not hex_data:
+            _LOGGER.error("No hex data provided for send_mix_data")
+            return
+
+        try:
+            success = await api.send_mix_data_raw(hex_data, screen_slot)
+            if success:
+                _LOGGER.info("Mixed data sent to slot %d", screen_slot)
+            else:
+                _LOGGER.error("Failed to send mixed data")
+        except Exception as err:
+            _LOGGER.error("Error sending mixed data: %s", err)
 
     # Register all services if not already registered
     if not hass.services.has_service(DOMAIN, SERVICE_DISPLAY_TEXT):
@@ -755,6 +792,9 @@ async def _async_register_services(
         hass.services.async_register(DOMAIN, SERVICE_SET_PASSWORD, handle_set_password)
     if not hass.services.has_service(DOMAIN, SERVICE_VERIFY_PASSWORD):
         hass.services.async_register(DOMAIN, SERVICE_VERIFY_PASSWORD, handle_verify_password)
+    # Mixed data service (from ipixel-ctrl protocol)
+    if not hass.services.has_service(DOMAIN, SERVICE_SEND_MIX_DATA):
+        hass.services.async_register(DOMAIN, SERVICE_SEND_MIX_DATA, handle_send_mix_data)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

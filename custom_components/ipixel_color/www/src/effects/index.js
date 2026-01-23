@@ -38,6 +38,12 @@ export const EFFECTS = {
   water: { category: EFFECT_CATEGORIES.AMBIENT, name: 'Water', description: 'Ripple/wave effect' },
   stars: { category: EFFECT_CATEGORIES.AMBIENT, name: 'Stars', description: 'Twinkling starfield' },
   confetti: { category: EFFECT_CATEGORIES.AMBIENT, name: 'Confetti', description: 'Falling colored particles' },
+  // Shader-inspired effects (ported from ipixel-shader GLSL)
+  plasma_wave: { category: EFFECT_CATEGORIES.AMBIENT, name: 'Plasma Wave', description: 'Multi-frequency sine waves' },
+  radial_pulse: { category: EFFECT_CATEGORIES.AMBIENT, name: 'Radial Pulse', description: 'Expanding ring patterns' },
+  hypnotic: { category: EFFECT_CATEGORIES.AMBIENT, name: 'Hypnotic', description: 'Spiral pattern' },
+  lava: { category: EFFECT_CATEGORIES.AMBIENT, name: 'Lava', description: 'Flowing lava/magma' },
+  aurora: { category: EFFECT_CATEGORIES.AMBIENT, name: 'Aurora', description: 'Northern lights' },
 
   // Color effects - applied to text colors
   color_cycle: { category: EFFECT_CATEGORIES.COLOR, name: 'Color Cycle', description: 'Cycle through colors' },
