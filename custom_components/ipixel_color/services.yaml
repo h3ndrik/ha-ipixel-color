@@ -883,3 +883,56 @@ draw_solid_color:
       example: "ff0000"
       selector:
         text:
+
+draw_visuals:
+  name: Draw Visuals
+  description: Render multiple visual elements (text, scrolling text, images, pixels) with animation support. Based on UnexpectedMatrixPixels.
+  target:
+    entity:
+      integration: ipixel_color
+      domain: switch
+  fields:
+    elements:
+      name: Elements
+      description: |
+        List of visual elements to render. Each element is an object with a 'type' field and type-specific properties.
+
+        Supported types:
+        - text: Static text (content, x, y, color, font, font_size, spacing)
+        - textscroll: Horizontal scrolling text (content, y, color, font, font_size, speed)
+        - textlong: Word-wrapped text with vertical scroll animation (content, x, y, color, font, speed, scroll_duration, direction)
+        - icon: MDI icon (icon, x, y, size, color)
+        - image: Image from URL or path (source, x, y, width, height)
+        - pixels: Raw pixels (data: [{x, y, color}])
+      required: true
+      example: |
+        - type: text
+          content: "Hello"
+          x: 0
+          y: 0
+          color: "ffffff"
+          font: "CUSONG"
+        - type: textscroll
+          content: "Scrolling message..."
+          y: 8
+          speed: 50
+          color: "00ff00"
+      selector:
+        object:
+    background:
+      name: Background Color
+      description: Background color as RGB array [r, g, b] or hex string
+      required: false
+      default: [0, 0, 0]
+      selector:
+        color_rgb:
+    fps:
+      name: FPS
+      description: Animation frames per second (1-30). Higher values = smoother animation but more BLE traffic.
+      required: false
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 30
+          mode: slider

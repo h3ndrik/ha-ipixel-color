@@ -31,6 +31,7 @@ PLATFORMS: list[Platform] = [
     Platform.BUTTON,
     Platform.LIGHT,
     Platform.MEDIA_PLAYER,
+    Platform.CAMERA,
 ]
 
 # Service names
@@ -76,6 +77,8 @@ SERVICE_SET_PIXELS_BATCHED = "set_pixels_batched"
 SERVICE_DISPLAY_IMAGE_RAW_RGB = "display_image_raw_rgb"
 SERVICE_DISPLAY_IMAGE_RAW_RGB_URL = "display_image_raw_rgb_url"
 SERVICE_DRAW_SOLID_COLOR = "draw_solid_color"
+# Visual rendering service (from UnexpectedMatrixPixels)
+SERVICE_DRAW_VISUALS = "draw_visuals"
 
 # Frontend card registration flag
 FRONTEND_REGISTERED = False
@@ -431,6 +434,68 @@ async def _async_register_services(
                 _LOGGER.error("Failed to fill display with color")
         except Exception as err:
             _LOGGER.error("Error filling display with color: %s", err)
+
+    async def handle_draw_visuals(call: ServiceCall) -> None:
+        """Handle draw_visuals service call (multi-element rendering with animation)."""
+        from homeassistant.helpers.aiohttp_client import async_get_clientsession
+        from .display.visual_renderer import VisualRenderer
+        from .display.animation_controller import AnimationController
+        from .display.font_cache import get_font_cache
+        from .const import FPS_DEFAULT
+
+        elements = call.data.get("elements", [])
+        background = call.data.get("background", [0, 0, 0])
+        fps = call.data.get("fps", FPS_DEFAULT)
+
+        if not elements:
+            _LOGGER.warning("No elements provided for draw_visuals service")
+            return
+
+        try:
+            # Parse background color
+            if isinstance(background, list) and len(background) >= 3:
+                bg_color = (int(background[0]), int(background[1]), int(background[2]))
+            elif isinstance(background, str):
+                from .color import hex_to_rgb
+                bg_color = hex_to_rgb(background)
+            else:
+                bg_color = (0, 0, 0)
+
+            # Get device info for dimensions
+            device_info = await api.get_device_info()
+            width = device_info.get("width", 64)
+            height = device_info.get("height", 16)
+
+            # Get HTTP session for image loading
+            session = async_get_clientsession(hass)
+
+            # Create renderer
+            renderer = VisualRenderer(width, height, get_font_cache(), session)
+
+            # Get or create animation controller
+            controller_key = f"{entry.entry_id}_animation"
+            if controller_key not in hass.data[DOMAIN]:
+                hass.data[DOMAIN][controller_key] = AnimationController(hass, api, renderer)
+            else:
+                # Update renderer in existing controller
+                controller = hass.data[DOMAIN][controller_key]
+                controller._renderer = renderer
+
+            controller = hass.data[DOMAIN][controller_key]
+
+            # Prepare elements (async for image loading)
+            prepared = await renderer.prepare_elements(elements, session)
+
+            # Start rendering
+            await controller.start(prepared, bg_color, fps)
+
+            _LOGGER.info(
+                "draw_visuals started: %d elements, fps=%d, animated=%s",
+                len(elements), fps, renderer.detect_animation(prepared)
+            )
+
+        except Exception as err:
+            _LOGGER.error("Error in draw_visuals: %s", err)
 
     async def handle_clear_pixels(call: ServiceCall) -> None:
         """Handle clear_pixels service call."""
@@ -887,6 +952,9 @@ async def _async_register_services(
         hass.services.async_register(DOMAIN, SERVICE_DISPLAY_IMAGE_RAW_RGB_URL, handle_display_image_raw_rgb_url)
     if not hass.services.has_service(DOMAIN, SERVICE_DRAW_SOLID_COLOR):
         hass.services.async_register(DOMAIN, SERVICE_DRAW_SOLID_COLOR, handle_draw_solid_color)
+    # Visual rendering service (from UnexpectedMatrixPixels)
+    if not hass.services.has_service(DOMAIN, SERVICE_DRAW_VISUALS):
+        hass.services.async_register(DOMAIN, SERVICE_DRAW_VISUALS, handle_draw_visuals)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -895,6 +963,15 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Unload platforms
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        # Stop animation controller if running
+        animation_controller = hass.data[DOMAIN].pop(f"{entry.entry_id}_animation", None)
+        if animation_controller:
+            try:
+                await animation_controller.stop()
+                _LOGGER.debug("Stopped animation controller")
+            except Exception as err:
+                _LOGGER.debug("Error stopping animation controller: %s", err)
+
         # Stop schedule manager playlist loop
         schedule_manager = hass.data[DOMAIN].pop(f"{entry.entry_id}_schedule", None)
         if schedule_manager:

@@ -72,6 +72,9 @@ class iPIXELAPI:
         self._power_state = False
         self._device_info: dict[str, Any] | None = None
         self._device_response: bytes | None = None
+        # Frame diffing support for draw_visuals
+        self._last_frame_bytes: bytes | None = None
+        self._last_frame_png: bytes | None = None
         
     async def connect(self) -> bool:
         """Connect to the iPIXEL device."""
@@ -454,6 +457,71 @@ class iPIXELAPI:
         except Exception as err:
             _LOGGER.error("Error downloading image from %s: %s", url, err)
             return False
+
+    async def display_frame_with_diff(
+        self,
+        frame: "Image.Image",
+        brightness: int = 100
+    ) -> bool:
+        """Display frame only if different from last frame (frame diffing).
+
+        Compares the new frame with the previously sent frame to avoid
+        redundant BLE transmissions. Stores the frame for camera preview.
+
+        Args:
+            frame: PIL Image to display (RGB mode)
+            brightness: Brightness level 1-100
+
+        Returns:
+            True if frame was sent or skipped (unchanged), False on error
+        """
+        try:
+            from PIL import Image
+            import io
+
+            # Ensure RGB mode
+            if frame.mode != "RGB":
+                frame = frame.convert("RGB")
+
+            # Get frame bytes for comparison
+            frame_bytes = frame.tobytes()
+
+            # Check if frame has changed
+            if frame_bytes == self._last_frame_bytes:
+                _LOGGER.debug("Frame unchanged, skipping BLE send")
+                return True
+
+            # Convert to PNG for storage and sending
+            png_buffer = io.BytesIO()
+            frame.save(png_buffer, format="PNG")
+            png_bytes = png_buffer.getvalue()
+
+            # Store for frame diffing and camera preview
+            self._last_frame_bytes = frame_bytes
+            self._last_frame_png = png_bytes
+
+            # Send via raw RGB protocol (faster for animations)
+            return await self.display_image_raw_rgb(png_bytes, ".png", brightness)
+
+        except Exception as err:
+            _LOGGER.error("Error displaying frame with diff: %s", err)
+            return False
+
+    def get_last_frame_png(self) -> bytes | None:
+        """Get last rendered frame as PNG bytes for camera preview.
+
+        Returns:
+            PNG image bytes or None if no frame has been sent
+        """
+        return self._last_frame_png
+
+    def clear_frame_cache(self) -> None:
+        """Clear the frame diffing cache.
+
+        Call this when starting a new animation or clearing the display.
+        """
+        self._last_frame_bytes = None
+        self._last_frame_png = None
 
     async def draw_solid_color(self, color: str) -> bool:
         """Fill the entire display with a solid color using raw RGB protocol.
