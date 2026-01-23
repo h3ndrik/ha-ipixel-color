@@ -411,6 +411,75 @@ export async function sendGfxPixels(pixels) {
   console.log('iPIXEL BLE: Finished sending GFX pixels');
 }
 
+/**
+ * Set upside down mode (flip display)
+ * @param {boolean} enabled - Whether upside down is enabled
+ */
+export async function setUpsideDown(enabled) {
+  await sendCommand([0x05, 0x00, 0x06, 0x80, enabled ? 0x01 : 0x00]);
+}
+
+/**
+ * Set text animation mode
+ * @param {number} mode - Animation mode (0-7)
+ *   0=Static, 1=Scroll Left, 2=Scroll Right, 3=Scroll Up,
+ *   4=Scroll Down, 5=Flash, 6=Fade In/Out, 7=Bounce
+ */
+export async function setAnimationMode(mode) {
+  const m = Math.max(0, Math.min(7, mode));
+  await sendCommand([0x05, 0x00, 0x0B, 0x01, m]);
+}
+
+/**
+ * Set font size
+ * @param {number} size - Font size (1-128)
+ */
+export async function setFontSize(size) {
+  const s = Math.max(1, Math.min(128, size));
+  await sendCommand([0x05, 0x00, 0x0C, 0x01, s]);
+}
+
+/**
+ * Set font offset (position adjustment)
+ * @param {number} x - X offset (-64 to 64)
+ * @param {number} y - Y offset (-32 to 32)
+ */
+export async function setFontOffset(x, y) {
+  // Convert to unsigned bytes (with offset for negative values)
+  const xByte = Math.max(0, Math.min(255, x + 128));
+  const yByte = Math.max(0, Math.min(255, y + 128));
+  await sendCommand([0x06, 0x00, 0x0D, 0x01, xByte, yByte]);
+}
+
+/**
+ * Delete a saved screen slot (1-10)
+ * @param {number} slot - Screen slot to delete (1-10)
+ */
+export async function deleteScreenSlot(slot) {
+  const s = Math.max(1, Math.min(10, slot));
+  // Delete command: [length, 0x00, 0x02, 0x01, count_low, count_high, ...slots]
+  await sendCommand([0x07, 0x00, 0x02, 0x01, 0x01, 0x00, s]);
+}
+
+/**
+ * Set power schedule
+ * @param {boolean} enabled - Whether schedule is enabled
+ * @param {number} onHour - Hour to turn on (0-23)
+ * @param {number} onMinute - Minute to turn on (0-59)
+ * @param {number} offHour - Hour to turn off (0-23)
+ * @param {number} offMinute - Minute to turn off (0-59)
+ */
+export async function setPowerSchedule(enabled, onHour, onMinute, offHour, offMinute) {
+  await sendCommand([
+    0x09, 0x00, 0x0E, 0x01,
+    enabled ? 0x01 : 0x00,
+    Math.max(0, Math.min(23, onHour)),
+    Math.max(0, Math.min(59, onMinute)),
+    Math.max(0, Math.min(23, offHour)),
+    Math.max(0, Math.min(59, offMinute))
+  ]);
+}
+
 // Export connection state for debugging
 export function getConnectionState() {
   return {
