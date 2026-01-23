@@ -885,6 +885,136 @@ export async function testCameraProtocol() {
   console.log('iPIXEL BLE: Camera test complete');
 }
 
+// Animation streaming state
+let animationRunning = false;
+let animationFrameId = null;
+
+/**
+ * Check if animation is currently running
+ */
+export function isAnimationRunning() {
+  return animationRunning;
+}
+
+/**
+ * Stop any running animation
+ */
+export function stopAnimation() {
+  animationRunning = false;
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
+  }
+  console.log('iPIXEL BLE: Animation stopped');
+}
+
+/**
+ * Stream animation frames to device using TYPE_CAMERA protocol
+ * @param {Function} getFramePixels - Function that returns current frame as hex color array
+ * @param {number} width - Display width
+ * @param {number} height - Display height
+ * @param {number} targetFps - Target frames per second (limited by BLE bandwidth)
+ */
+export async function streamAnimation(getFramePixels, width, height, targetFps = 5) {
+  if (!isDeviceConnected()) {
+    throw new Error('Not connected to device');
+  }
+
+  // Stop any existing animation
+  stopAnimation();
+
+  animationRunning = true;
+  console.log(`iPIXEL BLE: Starting animation stream at ${targetFps} fps`);
+
+  // Clear display first
+  await clearDisplayForCamera();
+
+  const frameInterval = 1000 / targetFps;
+  let lastFrameTime = 0;
+  let frameCount = 0;
+
+  const sendFrame = async () => {
+    if (!animationRunning || !isDeviceConnected()) {
+      console.log(`iPIXEL BLE: Animation ended after ${frameCount} frames`);
+      return;
+    }
+
+    const now = performance.now();
+    const elapsed = now - lastFrameTime;
+
+    if (elapsed >= frameInterval) {
+      try {
+        // Get current frame pixels from the renderer
+        const pixels = getFramePixels();
+        if (pixels && pixels.length > 0) {
+          // Send frame using camera protocol (without clearing each time)
+          await sendFrameOnly(pixels, width, height);
+          frameCount++;
+
+          if (frameCount % 10 === 0) {
+            const actualFps = 1000 / elapsed;
+            console.log(`iPIXEL BLE: Frame ${frameCount}, ~${actualFps.toFixed(1)} fps`);
+          }
+        }
+      } catch (e) {
+        console.error('iPIXEL BLE: Frame send error:', e);
+        // Continue trying unless disconnected
+        if (!isDeviceConnected()) {
+          stopAnimation();
+          return;
+        }
+      }
+      lastFrameTime = now;
+    }
+
+    // Schedule next frame
+    animationFrameId = requestAnimationFrame(sendFrame);
+  };
+
+  // Start the animation loop
+  sendFrame();
+}
+
+/**
+ * Send a single frame without clearing (for animation streaming)
+ */
+async function sendFrameOnly(pixels, width, height) {
+  // Convert hex pixels to RGB byte array with 50% brightness
+  const brightness = 50;
+  const rgbData = [];
+  for (let i = 0; i < width * height; i++) {
+    const color = pixels[i] || '#000000';
+    const rgb = hexToRgb(color);
+    rgbData.push(
+      Math.floor((rgb.r * brightness) / 100),
+      Math.floor((rgb.g * brightness) / 100),
+      Math.floor((rgb.b * brightness) / 100)
+    );
+  }
+
+  // Build packet (same as sendImageCamera but without clear)
+  const DEFAULT_FRAME_SIZE = 1024;
+  const headerLen = 9;
+  const totalLen = headerLen + rgbData.length;
+
+  const packet = new Uint8Array(totalLen);
+  packet[0] = totalLen & 0xFF;
+  packet[1] = (totalLen >> 8) & 0xFF;
+  packet[2] = 0x00; // TYPE_CAMERA
+  packet[3] = 0x00;
+  packet[4] = 0x00; // option = 0
+  packet[5] = DEFAULT_FRAME_SIZE & 0xFF;
+  packet[6] = (DEFAULT_FRAME_SIZE >> 8) & 0xFF;
+  packet[7] = (DEFAULT_FRAME_SIZE >> 16) & 0xFF;
+  packet[8] = (DEFAULT_FRAME_SIZE >> 24) & 0xFF;
+
+  for (let i = 0; i < rgbData.length; i++) {
+    packet[headerLen + i] = rgbData[i];
+  }
+
+  await sendLargeData(packet);
+}
+
 // Export connection state for debugging
 export function getConnectionState() {
   return {

@@ -246,6 +246,17 @@
       <button onclick="debugRenderer()" style="background:#08f;">Debug</button>
       <button onclick="bleResetLock()" style="background:#f00;">Reset</button>
     </div>
+    <div class="control-row" id="ble-controls-stream" style="display:none;">
+      <button id="ble-stream-btn" onclick="bleToggleStream()" style="background:#0aa; min-width: 140px;">▶ Stream to Device</button>
+      <label style="margin-left: 8px;">FPS:</label>
+      <select id="ble-stream-fps">
+        <option value="2">2 (Slow)</option>
+        <option value="3" selected>3 (Default)</option>
+        <option value="5">5 (Fast)</option>
+        <option value="8">8 (Very Fast)</option>
+      </select>
+      <span id="ble-stream-status" style="margin-left: 8px; color: #888;"></span>
+    </div>
     <div class="control-row" id="ble-controls-2" style="display:none;">
       <label>Brightness:</label>
       <input type="range" id="ble-brightness" min="1" max="100" value="50" style="flex:1;">
@@ -480,6 +491,7 @@
         document.getElementById('ble-disconnect-btn').style.display = 'inline-block';
         document.getElementById('ble-controls').style.display = 'flex';
         document.getElementById('ble-controls-debug').style.display = 'flex';
+        document.getElementById('ble-controls-stream').style.display = 'flex';
         document.getElementById('ble-controls-2').style.display = 'flex';
         document.getElementById('ble-controls-3').style.display = 'flex';
         document.getElementById('ble-controls-4').style.display = 'flex';
@@ -500,11 +512,17 @@
       document.getElementById('ble-disconnect-btn').style.display = 'none';
       document.getElementById('ble-controls').style.display = 'none';
       document.getElementById('ble-controls-debug').style.display = 'none';
+      document.getElementById('ble-controls-stream').style.display = 'none';
       document.getElementById('ble-controls-2').style.display = 'none';
       document.getElementById('ble-controls-3').style.display = 'none';
       document.getElementById('ble-controls-4').style.display = 'none';
       document.getElementById('ble-controls-5').style.display = 'none';
       document.getElementById('ble-controls-6').style.display = 'none';
+      // Stop streaming on disconnect
+      if (BLE.isAnimationRunning()) {
+        BLE.stopAnimation();
+        updateStreamButton(false);
+      }
       logService('ble', 'disconnect', {});
     };
 
@@ -729,6 +747,65 @@
       }
     };
 
+    // Update stream button appearance
+    function updateStreamButton(isStreaming) {
+      const btn = document.getElementById('ble-stream-btn');
+      const status = document.getElementById('ble-stream-status');
+      if (isStreaming) {
+        btn.textContent = '⏹ Stop Stream';
+        btn.style.background = '#a00';
+        status.textContent = 'Streaming...';
+        status.style.color = '#4f4';
+      } else {
+        btn.textContent = '▶ Stream to Device';
+        btn.style.background = '#0aa';
+        status.textContent = '';
+      }
+    }
+
+    // Toggle animation streaming to device
+    window.bleToggleStream = async function() {
+      if (!BLE.isDeviceConnected()) {
+        logService('ble', 'error', { message: 'Not connected' });
+        return;
+      }
+
+      // If already streaming, stop it
+      if (BLE.isAnimationRunning()) {
+        BLE.stopAnimation();
+        updateStreamButton(false);
+        logService('ble', 'stream_stopped', { message: 'Animation streaming stopped' });
+        return;
+      }
+
+      // Get the renderer
+      const displayCard = document.getElementById('display-card');
+      if (!displayCard || !displayCard._renderer) {
+        logService('ble', 'error', { message: 'No renderer available' });
+        return;
+      }
+
+      const renderer = displayCard._renderer;
+      const width = renderer.width;
+      const height = renderer.height;
+      const fps = parseInt(document.getElementById('ble-stream-fps').value) || 3;
+
+      logService('ble', 'stream_starting', { width, height, fps });
+
+      // Function to get current frame pixels
+      const getFramePixels = () => {
+        return renderer._colorPixels || [];
+      };
+
+      try {
+        updateStreamButton(true);
+        await BLE.streamAnimation(getFramePixels, width, height, fps);
+      } catch (e) {
+        logService('ble', 'stream_error', { message: e.message });
+        updateStreamButton(false);
+      }
+    };
+
     // Reset BLE lock if it gets stuck
     window.bleResetLock = function() {
       BLE.resetBleLock();
@@ -847,11 +924,17 @@
       document.getElementById('ble-disconnect-btn').style.display = 'none';
       document.getElementById('ble-controls').style.display = 'none';
       document.getElementById('ble-controls-debug').style.display = 'none';
+      document.getElementById('ble-controls-stream').style.display = 'none';
       document.getElementById('ble-controls-2').style.display = 'none';
       document.getElementById('ble-controls-3').style.display = 'none';
       document.getElementById('ble-controls-4').style.display = 'none';
       document.getElementById('ble-controls-5').style.display = 'none';
       document.getElementById('ble-controls-6').style.display = 'none';
+      // Stop streaming on disconnect
+      if (BLE.isAnimationRunning()) {
+        BLE.stopAnimation();
+        updateStreamButton(false);
+      }
     });
 
     // Check WebBluetooth availability
