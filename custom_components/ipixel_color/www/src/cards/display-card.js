@@ -131,10 +131,11 @@ export class iPIXELDisplayCard extends iPIXELCardBase {
     }
 
     if (!isOn) {
-      // Display off - show blank
+      // Display off - show blank using renderer (consistent with on state)
+      this._renderer.setData([]);
+      this._renderer.setEffect('fixed', 50);
       this._renderer.stop();
-      const pixels = textToPixels('', width, height, '#111', '#050505');
-      this._displayContainer.innerHTML = createPixelSvg(width, height, pixels);
+      this._renderer.renderStatic();
       return;
     }
 

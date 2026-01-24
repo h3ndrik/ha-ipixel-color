@@ -6,11 +6,15 @@
 
 import { EffectManager, EFFECTS } from './effects/index.js';
 
+// Re-export the high-performance Canvas renderer as the default
+export { ImageDataLEDRenderer as LEDMatrixRenderer } from './canvas-renderer.js';
+export { CanvasLEDRenderer, ImageDataLEDRenderer } from './canvas-renderer.js';
+
 /**
- * LED Matrix Renderer class
+ * SVG LED Matrix Renderer class (legacy, kept for fallback)
  * Pre-creates SVG rect elements and updates them efficiently
  */
-export class LEDMatrixRenderer {
+export class SVGLEDMatrixRenderer {
   constructor(container, options = {}) {
     this.container = container;
     this.width = options.width || 64;
