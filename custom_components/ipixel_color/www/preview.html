@@ -169,6 +169,103 @@
   <div class="header">
     <h1>iPIXEL Cards Preview</h1>
     <p>Development preview - test cards without Home Assistant</p>
+
+    <div class="controls-section" id="ble-section" style="margin-top: 20px; text-align: left;">
+      <h3>Real Device Connection (WebBluetooth)</h3>
+      <div class="control-row">
+        <label>Status:</label>
+        <span id="ble-status" style="color: #f44; font-weight: bold;">Disconnected</span>
+        <span id="ble-device-name" style="color: #888; margin-left: 8px;"></span>
+      </div>
+      <div class="control-row">
+        <button id="ble-connect-btn" onclick="connectBleDevice()">Connect Device</button>
+        <button id="ble-disconnect-btn" onclick="disconnectBleDevice()" style="display:none;">Disconnect</button>
+      </div>
+      <div class="control-row" id="ble-controls" style="display:none;">
+        <button onclick="blePowerOn()">Power On</button>
+        <button onclick="blePowerOff()">Power Off</button>
+        <button onclick="bleSendPreview()">Send Preview to Device</button>
+      </div>
+      <div class="control-row" id="ble-controls-debug" style="display:none;">
+        <button onclick="bleTestPattern()" style="background:#f80;">Test 3px</button>
+        <button onclick="bleTestCamera()" style="background:#f0f;">Test Cam</button>
+        <button onclick="bleSendCamera()" style="background:#0a0;">Camera (Fast)</button>
+        <button onclick="bleSendDiyPixels()" style="background:#888;">DIY (Slow)</button>
+        <button onclick="debugRenderer()" style="background:#08f;">Debug</button>
+        <button onclick="bleResetLock()" style="background:#f00;">Reset</button>
+      </div>
+      <div class="control-row" id="ble-controls-stream" style="display:none;">
+        <button id="ble-stream-btn" onclick="bleToggleStream()" style="background:#0aa; min-width: 140px;">▶ Stream to Device</button>
+        <label style="margin-left: 8px;">FPS:</label>
+        <select id="ble-stream-fps">
+          <option value="2">2 (Slow)</option>
+          <option value="3" selected>3 (Default)</option>
+          <option value="5">5 (Fast)</option>
+          <option value="8">8 (Very Fast)</option>
+        </select>
+        <span id="ble-stream-status" style="margin-left: 8px; color: #888;"></span>
+      </div>
+      <div class="control-row" id="ble-controls-2" style="display:none;">
+        <label>Brightness:</label>
+        <input type="range" id="ble-brightness" min="1" max="100" value="50" style="flex:1;">
+        <span id="ble-brightness-value">50</span>
+        <button onclick="bleSetBrightness()">Set</button>
+      </div>
+      <div class="control-row" id="ble-controls-3" style="display:none;">
+        <label>Clock:</label>
+        <select id="ble-clock-style">
+          <option value="1">Style 1</option>
+          <option value="2">Style 2</option>
+          <option value="3">Style 3</option>
+          <option value="4">Style 4</option>
+          <option value="5">Style 5</option>
+          <option value="6">Style 6</option>
+          <option value="7">Style 7</option>
+          <option value="8">Style 8</option>
+        </select>
+        <button onclick="bleSetClockMode()">Show Clock</button>
+        <button onclick="bleSyncTime()">Sync Time</button>
+      </div>
+      <div class="control-row" id="ble-controls-4" style="display:none;">
+        <label>Orientation:</label>
+        <select id="ble-orientation">
+          <option value="0">Normal</option>
+          <option value="1">Upside Down</option>
+        </select>
+        <button onclick="bleSetOrientation()">Set</button>
+        <button onclick="bleClearDisplay()">Clear</button>
+      </div>
+      <div class="control-row" id="ble-controls-5" style="display:none;">
+        <label>Rainbow:</label>
+        <select id="ble-rainbow-mode">
+          <option value="0">None</option>
+          <option value="1">Wave</option>
+          <option value="2">Cycle</option>
+          <option value="3">Pulse</option>
+          <option value="4">Fade</option>
+          <option value="5">Chase</option>
+          <option value="6">Sparkle</option>
+          <option value="7">Gradient</option>
+          <option value="8">Theater</option>
+          <option value="9">Fire</option>
+        </select>
+        <button onclick="bleSetRainbowMode()">Set Rainbow</button>
+      </div>
+      <div class="control-row" id="ble-controls-6" style="display:none;">
+        <label>Rhythm:</label>
+        <select id="ble-rhythm-style">
+          <option value="0">Classic Bars</option>
+          <option value="1">Mirrored Bars</option>
+          <option value="2">Center Out</option>
+          <option value="3">Wave Style</option>
+          <option value="4">Particle Style</option>
+        </select>
+        <button onclick="bleSetRhythmDemo()">Demo Rhythm</button>
+      </div>
+      <p style="font-size: 0.75em; color: #666; margin-top: 8px;">
+        Requires Chrome or Edge. Click "Connect Device" and select your LED_BLE_* device.
+      </p>
+    </div>
   </div>
 
   <div class="preview-container">
@@ -220,103 +317,6 @@
       </select>
       <button onclick="togglePower()">Toggle</button>
     </div>
-  </div>
-
-  <div class="controls-section" id="ble-section">
-    <h3>Real Device Connection (WebBluetooth)</h3>
-    <div class="control-row">
-      <label>Status:</label>
-      <span id="ble-status" style="color: #f44; font-weight: bold;">Disconnected</span>
-      <span id="ble-device-name" style="color: #888; margin-left: 8px;"></span>
-    </div>
-    <div class="control-row">
-      <button id="ble-connect-btn" onclick="connectBleDevice()">Connect Device</button>
-      <button id="ble-disconnect-btn" onclick="disconnectBleDevice()" style="display:none;">Disconnect</button>
-    </div>
-    <div class="control-row" id="ble-controls" style="display:none;">
-      <button onclick="blePowerOn()">Power On</button>
-      <button onclick="blePowerOff()">Power Off</button>
-      <button onclick="bleSendPreview()">Send Preview to Device</button>
-    </div>
-    <div class="control-row" id="ble-controls-debug" style="display:none;">
-      <button onclick="bleTestPattern()" style="background:#f80;">Test 3px</button>
-      <button onclick="bleTestCamera()" style="background:#f0f;">Test Cam</button>
-      <button onclick="bleSendCamera()" style="background:#0a0;">Camera (Fast)</button>
-      <button onclick="bleSendDiyPixels()" style="background:#888;">DIY (Slow)</button>
-      <button onclick="debugRenderer()" style="background:#08f;">Debug</button>
-      <button onclick="bleResetLock()" style="background:#f00;">Reset</button>
-    </div>
-    <div class="control-row" id="ble-controls-stream" style="display:none;">
-      <button id="ble-stream-btn" onclick="bleToggleStream()" style="background:#0aa; min-width: 140px;">▶ Stream to Device</button>
-      <label style="margin-left: 8px;">FPS:</label>
-      <select id="ble-stream-fps">
-        <option value="2">2 (Slow)</option>
-        <option value="3" selected>3 (Default)</option>
-        <option value="5">5 (Fast)</option>
-        <option value="8">8 (Very Fast)</option>
-      </select>
-      <span id="ble-stream-status" style="margin-left: 8px; color: #888;"></span>
-    </div>
-    <div class="control-row" id="ble-controls-2" style="display:none;">
-      <label>Brightness:</label>
-      <input type="range" id="ble-brightness" min="1" max="100" value="50" style="flex:1;">
-      <span id="ble-brightness-value">50</span>
-      <button onclick="bleSetBrightness()">Set</button>
-    </div>
-    <div class="control-row" id="ble-controls-3" style="display:none;">
-      <label>Clock:</label>
-      <select id="ble-clock-style">
-        <option value="1">Style 1</option>
-        <option value="2">Style 2</option>
-        <option value="3">Style 3</option>
-        <option value="4">Style 4</option>
-        <option value="5">Style 5</option>
-        <option value="6">Style 6</option>
-        <option value="7">Style 7</option>
-        <option value="8">Style 8</option>
-      </select>
-      <button onclick="bleSetClockMode()">Show Clock</button>
-      <button onclick="bleSyncTime()">Sync Time</button>
-    </div>
-    <div class="control-row" id="ble-controls-4" style="display:none;">
-      <label>Orientation:</label>
-      <select id="ble-orientation">
-        <option value="0">Normal</option>
-        <option value="1">Upside Down</option>
-      </select>
-      <button onclick="bleSetOrientation()">Set</button>
-      <button onclick="bleClearDisplay()">Clear</button>
-    </div>
-    <div class="control-row" id="ble-controls-5" style="display:none;">
-      <label>Rainbow:</label>
-      <select id="ble-rainbow-mode">
-        <option value="0">None</option>
-        <option value="1">Wave</option>
-        <option value="2">Cycle</option>
-        <option value="3">Pulse</option>
-        <option value="4">Fade</option>
-        <option value="5">Chase</option>
-        <option value="6">Sparkle</option>
-        <option value="7">Gradient</option>
-        <option value="8">Theater</option>
-        <option value="9">Fire</option>
-      </select>
-      <button onclick="bleSetRainbowMode()">Set Rainbow</button>
-    </div>
-    <div class="control-row" id="ble-controls-6" style="display:none;">
-      <label>Rhythm:</label>
-      <select id="ble-rhythm-style">
-        <option value="0">Classic Bars</option>
-        <option value="1">Mirrored Bars</option>
-        <option value="2">Center Out</option>
-        <option value="3">Wave Style</option>
-        <option value="4">Particle Style</option>
-      </select>
-      <button onclick="bleSetRhythmDemo()">Demo Rhythm</button>
-    </div>
-    <p style="font-size: 0.75em; color: #666; margin-top: 8px;">
-      Requires Chrome or Edge. Click "Connect Device" and select your LED_BLE_* device.
-    </p>
   </div>
 
   <div class="log-section">

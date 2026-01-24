@@ -24,11 +24,14 @@ const fontLoadPromises = {};
 
 /**
  * Get the base URL for font files
- * Handles HACS, manual installation, and local preview paths
+ * Handles HACS, manual installation, local preview, and GitHub Pages paths
  */
 function getFontUrl(fontName) {
-  // Check if we're in local preview mode (not in Home Assistant)
-  if (window.location.pathname.includes('preview.html') || window.location.port === '8080') {
+  // Check if we're in local preview mode or GitHub Pages (not in Home Assistant)
+  const isPreview = window.location.pathname.includes('preview.html') ||
+                    window.location.port === '8080' ||
+                    window.location.hostname.includes('github.io');
+  if (isPreview) {
     return `./fonts/${fontName}.ttf`;
   }
   // Try HACS path (most common in Home Assistant)
