@@ -163,6 +163,266 @@ def effect_desaturate(image: Image.Image) -> Image.Image:
     return enhancer.enhance(0.5)
 
 
+# === Shader-inspired procedural effects (ported from ipixel-shader GLSL) ===
+
+import math
+import colorsys
+
+
+def generate_plasma_wave(width: int, height: int, time: float = 0.0) -> Image.Image:
+    """Generate a plasma wave pattern frame.
+
+    Based on the shader.frag example from ipixel-shader project.
+    Uses multi-frequency sine waves for psychedelic color patterns.
+
+    Args:
+        width: Image width
+        height: Image height
+        time: Animation time parameter (0.0 to animate)
+
+    Returns:
+        PIL Image with plasma wave pattern
+    """
+    img = Image.new("RGB", (width, height))
+    pixels = img.load()
+
+    for x in range(width):
+        for y in range(height):
+            # Normalize coordinates
+            uvX = x / width
+            uvY = y / height
+
+            # Multi-frequency sine wave combination
+            v = (math.sin(uvX * 10.0 + time)
+                 + math.sin(uvY * 10.0 + time)
+                 + math.sin((uvX + uvY) * 10.0 + time)
+                 + math.sin(math.sqrt((uvX - 0.5) ** 2 + (uvY - 0.5) ** 2) * 20.0 - time * 2.0))
+
+            # Color cycling with phase offsets
+            r = int((math.sin(v * math.pi) * 0.5 + 0.5) * 255)
+            g = int((math.sin(v * math.pi + 2.094) * 0.5 + 0.5) * 255)
+            b = int((math.sin(v * math.pi + 4.188) * 0.5 + 0.5) * 255)
+
+            pixels[x, y] = (r, g, b)
+
+    return img
+
+
+def generate_radial_pulse(width: int, height: int, time: float = 0.0) -> Image.Image:
+    """Generate a radial pulse pattern frame.
+
+    Creates concentric rings emanating from center.
+
+    Args:
+        width: Image width
+        height: Image height
+        time: Animation time parameter
+
+    Returns:
+        PIL Image with radial pulse pattern
+    """
+    img = Image.new("RGB", (width, height))
+    pixels = img.load()
+
+    centerX = width / 2
+    centerY = height / 2
+
+    for x in range(width):
+        for y in range(height):
+            dx = x - centerX
+            dy = y - centerY
+            dist = math.sqrt(dx * dx + dy * dy)
+
+            # Create expanding rings
+            wave = math.sin(dist * 0.8 - time * 3.0) * 0.5 + 0.5
+            pulse = math.sin(time * 2.0) * 0.3 + 0.7
+
+            # Color based on distance and time
+            hue = (dist / 20 + time * 0.5) % 1.0
+            r, g, b = colorsys.hsv_to_rgb(hue, 0.8, wave * pulse)
+
+            pixels[x, y] = (int(r * 255), int(g * 255), int(b * 255))
+
+    return img
+
+
+def generate_hypnotic(width: int, height: int, time: float = 0.0) -> Image.Image:
+    """Generate a hypnotic spiral pattern frame.
+
+    Args:
+        width: Image width
+        height: Image height
+        time: Animation time parameter
+
+    Returns:
+        PIL Image with hypnotic spiral pattern
+    """
+    img = Image.new("RGB", (width, height))
+    pixels = img.load()
+
+    centerX = width / 2
+    centerY = height / 2
+
+    for x in range(width):
+        for y in range(height):
+            dx = x - centerX
+            dy = y - centerY
+            dist = math.sqrt(dx * dx + dy * dy)
+            angle = math.atan2(dy, dx)
+
+            # Spiral pattern
+            spiral = math.sin(angle * 4.0 + dist * 0.5 - time * 2.0)
+            intensity = spiral * 0.5 + 0.5
+
+            # Pulsing colors
+            r = int(intensity * (math.sin(time) * 0.5 + 0.5) * 255)
+            g = int(intensity * (math.sin(time + 2.094) * 0.5 + 0.5) * 255)
+            b = int(intensity * (math.sin(time + 4.188) * 0.5 + 0.5) * 255)
+
+            pixels[x, y] = (r, g, b)
+
+    return img
+
+
+def generate_lava(width: int, height: int, time: float = 0.0) -> Image.Image:
+    """Generate a lava/magma flow pattern frame.
+
+    Args:
+        width: Image width
+        height: Image height
+        time: Animation time parameter
+
+    Returns:
+        PIL Image with lava pattern
+    """
+    img = Image.new("RGB", (width, height))
+    pixels = img.load()
+
+    for x in range(width):
+        for y in range(height):
+            uvX = x / width
+            uvY = y / height
+
+            # Multiple noise layers for organic movement
+            n1 = math.sin(uvX * 8.0 + time * 0.7) * math.cos(uvY * 6.0 + time * 0.5)
+            n2 = math.sin(uvX * 12.0 - time * 0.3) * math.sin(uvY * 10.0 + time * 0.8)
+            n3 = math.cos((uvX + uvY) * 5.0 + time)
+
+            value = (n1 + n2 + n3 + 3) / 6
+
+            # Lava color palette
+            if value < 0.3:
+                r, g, b = int(value * 3 * 100), 0, 0
+            elif value < 0.6:
+                r = int(100 + (value - 0.3) * 3 * 155)
+                g = int((value - 0.3) * 3 * 100)
+                b = 0
+            else:
+                r = 255
+                g = int(100 + (value - 0.6) * 2.5 * 155)
+                b = int((value - 0.6) * 2.5 * 100)
+
+            pixels[x, y] = (min(255, r), min(255, g), min(255, b))
+
+    return img
+
+
+def generate_aurora(width: int, height: int, time: float = 0.0) -> Image.Image:
+    """Generate a northern lights (aurora) pattern frame.
+
+    Args:
+        width: Image width
+        height: Image height
+        time: Animation time parameter
+
+    Returns:
+        PIL Image with aurora pattern
+    """
+    import random
+    img = Image.new("RGB", (width, height))
+    pixels = img.load()
+
+    # Seed for consistent star positions
+    random.seed(42)
+    stars = [(random.randint(0, width-1), random.randint(0, height-1))
+             for _ in range(int(width * height * 0.02))]
+
+    for x in range(width):
+        for y in range(height):
+            uvX = x / width
+            uvY = y / height
+
+            # Vertical wave bands
+            wave1 = math.sin(uvX * 6.0 + time) * 0.3
+            wave2 = math.sin(uvX * 4.0 - time * 0.7) * 0.2
+            wave3 = math.sin(uvX * 8.0 + time * 1.3) * 0.15
+
+            waveLine = 0.5 + wave1 + wave2 + wave3
+            distFromWave = abs(uvY - waveLine)
+
+            # Fade based on distance from wave
+            intensity = max(0, 1 - distFromWave * 4)
+            glow = intensity ** 1.5
+
+            # Aurora colors
+            colorShift = math.sin(uvX * 3.0 + time * 0.5)
+            r = int(glow * (0.2 + colorShift * 0.3) * 255)
+            g = int(glow * (0.8 + math.sin(time + uvX) * 0.2) * 255)
+            b = int(glow * (0.6 + colorShift * 0.4) * 255)
+
+            pixels[x, y] = (min(255, r), min(255, g), min(255, b))
+
+    # Add twinkling stars in dark areas
+    star_brightness = (math.sin(time * 3) * 0.5 + 0.5) * 180
+    for sx, sy in stars:
+        if pixels[sx, sy][1] < 50:  # Only in dark areas
+            pixels[sx, sy] = (int(star_brightness), int(star_brightness), int(star_brightness * 0.9))
+
+    return img
+
+
+# Shader effect generators registry
+SHADER_GENERATORS = {
+    "plasma_wave": generate_plasma_wave,
+    "radial_pulse": generate_radial_pulse,
+    "hypnotic": generate_hypnotic,
+    "lava": generate_lava,
+    "aurora": generate_aurora,
+}
+
+
+def generate_shader_frame(
+    effect_name: str,
+    width: int,
+    height: int,
+    time: float = 0.0
+) -> Image.Image | None:
+    """Generate a single frame of a shader-inspired effect.
+
+    Args:
+        effect_name: Name of the shader effect
+        width: Image width
+        height: Image height
+        time: Animation time parameter (increment for animation)
+
+    Returns:
+        PIL Image with the effect, or None if effect not found
+    """
+    generator = SHADER_GENERATORS.get(effect_name.lower())
+    if generator:
+        try:
+            return generator(width, height, time)
+        except Exception as err:
+            _LOGGER.warning("Shader effect '%s' failed: %s", effect_name, err)
+            return None
+    return None
+
+
+def get_shader_effect_names() -> list[str]:
+    """Get list of available shader effect names."""
+    return list(SHADER_GENERATORS.keys())
+
+
 # Effect registry
 EFFECTS: dict[str, Callable[[Image.Image], Image.Image]] = {
     "none": effect_none,

@@ -663,3 +663,276 @@ display_image_url:
           min: 1
           max: 255
           mode: box
+
+# Screen and mode control
+
+set_screen:
+  name: Set Screen
+  description: Select which stored screen buffer to display (1-9)
+  target:
+    entity:
+      integration: ipixel_color
+      domain: switch
+  fields:
+    screen:
+      name: Screen Number
+      description: Screen buffer to display (1-9)
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 9
+          mode: box
+
+set_diy_mode:
+  name: Set DIY Mode
+  description: Control DIY mode with extended options for custom content creation
+  target:
+    entity:
+      integration: ipixel_color
+      domain: switch
+  fields:
+    mode:
+      name: Mode
+      description: "DIY mode option: 0=Exit (keep prev), 1=Enter (clear), 2=Exit (keep current), 3=Enter (preserve)"
+      required: true
+      default: 1
+      selector:
+        select:
+          options:
+            - label: "Exit - Keep Previous Display"
+              value: "0"
+            - label: "Enter - Clear Display (Recommended)"
+              value: "1"
+            - label: "Exit - Keep Current Display"
+              value: "2"
+            - label: "Enter - Preserve Content"
+              value: "3"
+
+send_raw_command:
+  name: Send Raw Command
+  description: Send raw hex command to device (for expert/debugging use)
+  target:
+    entity:
+      integration: ipixel_color
+      domain: switch
+  fields:
+    hex_data:
+      name: Hex Data
+      description: Raw command as hex string (e.g., 'AABBCC' or 'AA BB CC')
+      required: true
+      example: "05 00 07 01 01"
+      selector:
+        text:
+
+# Password management (from ipixel-ctrl protocol)
+
+set_password:
+  name: Set Password
+  description: Enable or disable password protection on the device
+  target:
+    entity:
+      integration: ipixel_color
+      domain: switch
+  fields:
+    enabled:
+      name: Enabled
+      description: Enable password protection
+      required: true
+      default: true
+      selector:
+        boolean:
+    password:
+      name: Password
+      description: 6-digit password (e.g., '123456')
+      required: true
+      example: "123456"
+      selector:
+        text:
+
+verify_password:
+  name: Verify Password
+  description: Verify password on a password-protected device (required before other commands)
+  target:
+    entity:
+      integration: ipixel_color
+      domain: switch
+  fields:
+    password:
+      name: Password
+      description: 6-digit password to verify (e.g., '123456')
+      required: true
+      example: "123456"
+      selector:
+        text:
+
+# Mixed data command (0x0004 - combines PNG, GIF, and TEXT)
+
+send_mix_data:
+  name: Send Mixed Data
+  description: Send combined PNG/GIF/TEXT data to device (advanced, partially documented protocol)
+  target:
+    entity:
+      integration: ipixel_color
+      domain: switch
+  fields:
+    hex_data:
+      name: Hex Data
+      description: Raw mixed data blocks as hex string (block headers + content)
+      required: true
+      example: "8000 0000 0300 0060 1000 6400 0064 0000 <text_data>"
+      selector:
+        text:
+          multiline: true
+    screen_slot:
+      name: Screen Slot
+      description: Storage slot on device (1-255)
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 255
+          mode: box
+
+# Optimized pixel and image services (from go-ipxl)
+
+set_pixels_batched:
+  name: Set Pixels (Batched)
+  description: Set multiple pixels using optimized batch sending, grouped by color. More efficient than set_pixels for drawing shapes or patterns.
+  target:
+    entity:
+      integration: ipixel_color
+      domain: switch
+  fields:
+    pixels:
+      name: Pixels
+      description: List of pixel objects with x, y, and color properties. Pixels are automatically grouped by color for efficient transmission.
+      required: true
+      example: '[{"x": 0, "y": 0, "color": "ff0000"}, {"x": 1, "y": 0, "color": "ff0000"}, {"x": 2, "y": 0, "color": "00ff00"}]'
+      selector:
+        object:
+
+display_image_raw_rgb:
+  name: Display Image (Raw RGB)
+  description: Display image using raw RGB protocol (camera mode). Sends pixel data directly without PNG encoding, useful for real-time streaming applications.
+  target:
+    entity:
+      integration: ipixel_color
+      domain: switch
+  fields:
+    image_path:
+      name: Image Path
+      description: Path to the image file (PNG, JPEG, etc.)
+      required: true
+      example: "/config/www/images/display.png"
+      selector:
+        text:
+    brightness:
+      name: Brightness
+      description: Brightness level applied to image data (1-100)
+      required: false
+      default: 100
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: slider
+          unit_of_measurement: "%"
+
+display_image_raw_rgb_url:
+  name: Display Image URL (Raw RGB)
+  description: Download and display image using raw RGB protocol. Uses direct pixel data transmission for potentially faster updates.
+  target:
+    entity:
+      integration: ipixel_color
+      domain: switch
+  fields:
+    url:
+      name: Image URL
+      description: URL to the image file (PNG, JPEG, etc.)
+      required: true
+      example: "https://example.com/image.png"
+      selector:
+        text:
+    brightness:
+      name: Brightness
+      description: Brightness level applied to image data (1-100)
+      required: false
+      default: 100
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: slider
+          unit_of_measurement: "%"
+
+draw_solid_color:
+  name: Draw Solid Color
+  description: Fill the entire display with a single color using raw RGB protocol. Faster than setting each pixel individually.
+  target:
+    entity:
+      integration: ipixel_color
+      domain: switch
+  fields:
+    color:
+      name: Color
+      description: Hex color to fill display with (e.g., 'ff0000' for red)
+      required: true
+      example: "ff0000"
+      selector:
+        text:
+
+draw_visuals:
+  name: Draw Visuals
+  description: Render multiple visual elements (text, scrolling text, images, pixels) with animation support. Based on UnexpectedMatrixPixels.
+  target:
+    entity:
+      integration: ipixel_color
+      domain: switch
+  fields:
+    elements:
+      name: Elements
+      description: |
+        List of visual elements to render. Each element is an object with a 'type' field and type-specific properties.
+
+        Supported types:
+        - text: Static text (content, x, y, color, font, font_size, spacing)
+        - textscroll: Horizontal scrolling text (content, y, color, font, font_size, speed)
+        - textlong: Word-wrapped text with vertical scroll animation (content, x, y, color, font, speed, scroll_duration, direction)
+        - icon: MDI icon (icon, x, y, size, color)
+        - image: Image from URL or path (source, x, y, width, height)
+        - pixels: Raw pixels (data: [{x, y, color}])
+      required: true
+      example: |
+        - type: text
+          content: "Hello"
+          x: 0
+          y: 0
+          color: "ffffff"
+          font: "CUSONG"
+        - type: textscroll
+          content: "Scrolling message..."
+          y: 8
+          speed: 50
+          color: "00ff00"
+      selector:
+        object:
+    background:
+      name: Background Color
+      description: Background color as RGB array [r, g, b] or hex string
+      required: false
+      default: [0, 0, 0]
+      selector:
+        color_rgb:
+    fps:
+      name: FPS
+      description: Animation frames per second (1-30). Higher values = smoother animation but more BLE traffic.
+      required: false
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 30
+          mode: slider

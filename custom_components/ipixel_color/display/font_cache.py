@@ -349,6 +349,123 @@ class FontCache:
             "cache_dir": str(self._cache_dir),
         }
 
+    def get_char_mask(
+        self,
+        char: str,
+        font_path: str,
+        height: int,
+        font_size: int | None = None
+    ) -> tuple[Image.Image, int]:
+        """Get character mask image and advance width for compositing.
+
+        Returns a white-on-transparent RGBA image that can be colorized
+        and composited onto a canvas. Used by visual renderer for
+        efficient text rendering with per-character caching.
+
+        Args:
+            char: Character to render
+            font_path: Path to font file
+            height: Target height in pixels
+            font_size: Font size (defaults to height)
+
+        Returns:
+            Tuple of (RGBA mask image, character advance width)
+        """
+        # Leverage existing get_char_image which already caches
+        return self.get_char_image(char, font_path, height, font_size)
+
+    def measure_text_width(
+        self,
+        text: str,
+        font_path: str,
+        height: int,
+        spacing: int = 0,
+        font_size: int | None = None
+    ) -> int:
+        """Measure total width of text without full rendering.
+
+        Uses character cache for efficient width calculation.
+
+        Args:
+            text: Text to measure
+            font_path: Path to font file
+            height: Target height in pixels
+            spacing: Extra spacing between characters
+            font_size: Font size (defaults to height)
+
+        Returns:
+            Total width in pixels
+        """
+        if not text:
+            return 0
+
+        total_width = 0
+        for i, char in enumerate(text):
+            _, char_width = self.get_char_mask(char, font_path, height, font_size)
+            total_width += char_width
+            if i < len(text) - 1:
+                total_width += spacing
+
+        return total_width
+
+    def wrap_text_to_lines(
+        self,
+        text: str,
+        font_path: str,
+        height: int,
+        max_width: int,
+        spacing: int = 0,
+        font_size: int | None = None
+    ) -> list[str]:
+        """Wrap text to fit within max_width, returning list of lines.
+
+        Uses word-based wrapping for clean breaks.
+
+        Args:
+            text: Text to wrap
+            font_path: Path to font file
+            height: Target height in pixels
+            max_width: Maximum line width in pixels
+            spacing: Extra spacing between characters
+            font_size: Font size (defaults to height)
+
+        Returns:
+            List of wrapped text lines
+        """
+        if not text:
+            return []
+
+        words = text.split(' ')
+        lines: list[str] = []
+        current_line: list[str] = []
+        current_width = 0
+
+        # Measure space character width
+        space_width = self.measure_text_width(' ', font_path, height, spacing, font_size)
+
+        for word in words:
+            word_width = self.measure_text_width(word, font_path, height, spacing, font_size)
+
+            if not current_line:
+                # First word on line
+                current_line.append(word)
+                current_width = word_width
+            elif current_width + space_width + word_width <= max_width:
+                # Word fits on current line
+                current_line.append(word)
+                current_width += space_width + word_width
+            else:
+                # Start new line
+                lines.append(' '.join(current_line))
+                current_line = [word]
+                current_width = word_width
+
+        # Add final line
+        if current_line:
+            lines.append(' '.join(current_line))
+
+        return lines
+
 
 # Global cache instance
 _global_cache: FontCache | None = None

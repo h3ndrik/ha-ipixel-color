@@ -320,3 +320,554 @@ def make_rhythm_mode_advanced_command(style: int, levels: list[int]) -> bytes:
     command = bytearray([16, 0, 1, 2, style])
     command.extend(levels)
     return bytes(command)
+
+
+def make_screen_command(screen: int) -> bytes:
+    """Build command to select visible screen buffer.
+
+    Command format from ipixel-ctrl (opcode 0x8007):
+    [length, 0, 0x07, 0x80, screen]
+
+    Args:
+        screen: Screen number to display (1-9)
+
+    Returns:
+        Command bytes for screen selection
+
+    Raises:
+        ValueError: If screen is not in valid range (1-9)
+    """
+    if screen < 1 or screen > 9:
+        raise ValueError("Screen must be between 1 and 9")
+
+    return make_command_payload(0x8007, bytes([screen]))
+
+
+def make_diy_mode_command(mode: int) -> bytes:
+    """Build command to control DIY mode with extended options.
+
+    Command format from ipixel-ctrl/ipixel-shader (opcode 0x0104):
+    [length, 0, 0x04, 0x01, mode_byte]
+
+    DIY Mode options (from ipixel-shader):
+        0: QUIT_NOSAVE_KEEP_PREV  - Exit DIY mode, don't save, keep previous display
+        1: ENTER_CLEAR_CUR_SHOW   - Enter DIY mode, clear display
+        2: QUIT_STILL_CUR_SHOW    - Exit DIY mode, keep current display
+        3: ENTER_NO_CLEAR_CUR_SHOW - Enter DIY mode, preserve current content
+
+    Args:
+        mode: DIY mode option (0-3), or bool for backwards compatibility
+              True = mode 1 (enter + clear), False = mode 0 (exit + keep prev)
+
+    Returns:
+        Command bytes for DIY mode control
+    """
+    # Handle backwards compatibility with bool
+    if isinstance(mode, bool):
+        mode_byte = 0x01 if mode else 0x00
+    else:
+        if mode < 0 or mode > 3:
+            raise ValueError("DIY mode must be 0-3")
+        mode_byte = mode
+
+    return make_command_payload(0x0104, bytes([mode_byte]))
+
+
+def make_raw_command(hex_data: str) -> bytes:
+    """Build raw command from hex string for expert/debugging use.
+
+    This allows sending arbitrary commands to the device for testing
+    or accessing undocumented features.
+
+    Args:
+        hex_data: Hex string (e.g., 'AABBCC' or 'AA BB CC')
+
+    Returns:
+        Command bytes from the hex data
+
+    Raises:
+        ValueError: If hex_data is empty or invalid
+    """
+    if not hex_data or len(hex_data) < 1:
+        raise ValueError("At least one byte must be specified")
+
+    # Remove spaces and convert to bytes
+    hex_clean = hex_data.replace(" ", "")
+    try:
+        return bytes.fromhex(hex_clean)
+    except ValueError as err:
+        raise ValueError(f"Invalid hex data: {err}") from err
+
+
+def make_set_password_command(enabled: bool, password: str) -> bytes:
+    """Build command to set device password.
+
+    Command format from ipixel-ctrl (opcode 0x0204):
+    [length, 0, 0x04, 0x02, pwd_sw, pwd_1, pwd_2, pwd_3]
+
+    The password is a 6-digit number (e.g., '123456') split into 3 pairs:
+    - pwd_1 = first 2 digits as integer (12)
+    - pwd_2 = middle 2 digits as integer (34)
+    - pwd_3 = last 2 digits as integer (56)
+
+    Args:
+        enabled: True to enable password protection, False to disable
+        password: 6-digit password string (e.g., '123456')
+
+    Returns:
+        Command bytes for setting password
+
+    Raises:
+        ValueError: If password is not exactly 6 digits
+    """
+    # Validate password format
+    if not password or len(password) != 6:
+        raise ValueError("Password must be exactly 6 digits")
+    if not password.isdigit():
+        raise ValueError("Password must contain only digits")
+
+    pwd_sw = 0x01 if enabled else 0x00
+    pwd_1 = int(password[0:2])  # XX0000
+    pwd_2 = int(password[2:4])  # 00XX00
+    pwd_3 = int(password[4:6])  # 0000XX
+
+    return make_command_payload(0x0204, bytes([pwd_sw, pwd_1, pwd_2, pwd_3]))
+
+
+def make_verify_password_command(password: str) -> bytes:
+    """Build command to verify device password.
+
+    Command format from ipixel-ctrl (opcode 0x0205):
+    [length, 0, 0x05, 0x02, pwd_1, pwd_2, pwd_3]
+
+    The password is a 6-digit number split into 3 pairs.
+
+    Args:
+        password: 6-digit password string (e.g., '123456')
+
+    Returns:
+        Command bytes for verifying password
+
+    Raises:
+        ValueError: If password is not exactly 6 digits
+    """
+    # Validate password format
+    if not password or len(password) != 6:
+        raise ValueError("Password must be exactly 6 digits")
+    if not password.isdigit():
+        raise ValueError("Password must contain only digits")
+
+    pwd_1 = int(password[0:2])  # XX0000
+    pwd_2 = int(password[2:4])  # 00XX00
+    pwd_3 = int(password[4:6])  # 0000XX
+
+    return make_command_payload(0x0205, bytes([pwd_1, pwd_2, pwd_3]))
+
+
+# Mixed Data Block Types
+MIX_BLOCK_TYPE_TEXT = 0x8000
+MIX_BLOCK_TYPE_GIF = 0x0001  # Varies based on size
+MIX_BLOCK_TYPE_PNG = 0x0001
+
+
+def make_mix_block_header(
+    block_type: int,
+    data_size: int,
+    x: int = 0,
+    y: int = 0,
+    width: int = 32,
+    height: int = 32,
+    duration: int = 100
+) -> bytes:
+    """Build a block header for mixed data content.
+
+    Block header format (16 bytes) based on protocol examples:
+    - Bytes 0-1: Block type/size indicator (little-endian)
+    - Bytes 2-3: Reserved (0x0000)
+    - Bytes 4-5: Mode/flags
+    - Bytes 6-7: X position (little-endian)
+    - Bytes 8-9: Y position and flags
+    - Bytes 10-11: Width (little-endian)
+    - Bytes 12-13: Height (little-endian)
+    - Bytes 14-15: Duration or reserved
+
+    Note: Block header format is partially documented. This implementation
+    is based on reverse engineering the protocol examples.
+
+    Args:
+        block_type: Type of block (MIX_BLOCK_TYPE_TEXT, etc.)
+        data_size: Size of the data following this header
+        x: X position on display
+        y: Y position on display
+        width: Width of content area
+        height: Height of content area
+        duration: Display duration (0-100)
+
+    Returns:
+        16-byte block header
+    """
+    header = bytearray(16)
+
+    # Block type/size indicator (bytes 0-1)
+    if block_type == MIX_BLOCK_TYPE_TEXT:
+        header[0:2] = (0x8000).to_bytes(2, 'little')
+        header[4:6] = (0x0003).to_bytes(2, 'little')  # Text mode flag
+    else:
+        # For GIF/PNG, use data size in header
+        header[0:2] = (data_size & 0xFFFF).to_bytes(2, 'little')
+        header[4:6] = (0x0001).to_bytes(2, 'little')  # Image mode flag
+
+    # Reserved (bytes 2-3)
+    header[2:4] = (0x0000).to_bytes(2, 'little')
+
+    # Position X (bytes 6-7) - combined with Y offset
+    pos_combined = (y << 8) | (x & 0xFF)
+    header[6:8] = pos_combined.to_bytes(2, 'little')
+
+    # Width/Height (bytes 8-9)
+    size_combined = (height << 8) | (width & 0xFF)
+    header[8:10] = size_combined.to_bytes(2, 'little')
+
+    # Duration (bytes 10-11)
+    header[10:12] = duration.to_bytes(2, 'little')
+
+    # Reserved (bytes 12-15)
+    header[12:14] = (0x0064).to_bytes(2, 'little')  # Common value from examples
+    header[14:16] = (0x0000).to_bytes(2, 'little')
+
+    return bytes(header)
+
+
+def make_mix_data_command(
+    blocks: list[tuple[bytes, bytes]],
+    screen_slot: int = 1
+) -> bytes:
+    """Build command to send mixed data (PNG + GIF + TEXT combined).
+
+    Command format from ipixel-ctrl (opcode 0x0004):
+    [length, opcode, 0x00, data_size(4), crc32(4), 0x02, screen_slot, mix_data...]
+
+    Args:
+        blocks: List of (header, data) tuples. Each tuple contains:
+                - header: 16-byte block header (use make_mix_block_header)
+                - data: Raw content data (PNG bytes, GIF bytes, or text bytes)
+        screen_slot: Storage slot on device (1-255)
+
+    Returns:
+        Command bytes for mixed data upload
+
+    Raises:
+        ValueError: If blocks list is empty or screen_slot is invalid
+    """
+    import zlib
+
+    if not blocks:
+        raise ValueError("At least one block must be provided")
+    if screen_slot < 1 or screen_slot > 255:
+        raise ValueError("Screen slot must be 1-255")
+
+    # Build mixed data payload from all blocks
+    mix_data = bytearray()
+    for header, data in blocks:
+        mix_data.extend(header)
+        mix_data.extend(data)
+
+    # Calculate CRC32 of mix data
+    crc32 = zlib.crc32(mix_data) & 0xFFFFFFFF
+
+    # Build command payload
+    payload = bytearray()
+    payload.append(0x00)  # Unknown fixed byte
+    payload.extend(len(mix_data).to_bytes(4, 'little'))  # Data size
+    payload.extend(crc32.to_bytes(4, 'little'))          # CRC32
+    payload.append(0x02)  # Unknown fixed byte (0x02 for mix data)
+    payload.append(screen_slot)                          # Screen slot
+    payload.extend(mix_data)                             # Mixed data blocks
+
+    return make_command_payload(0x0004, bytes(payload))
+
+
+def make_mix_data_raw_command(
+    raw_mix_data: bytes,
+    screen_slot: int = 1
+) -> bytes:
+    """Build command to send pre-built mixed data.
+
+    This is for advanced users who want to send raw mixed data blocks
+    without using the block header builder.
+
+    Args:
+        raw_mix_data: Pre-built mixed data with headers
+        screen_slot: Storage slot on device (1-255)
+
+    Returns:
+        Command bytes for mixed data upload
+    """
+    import zlib
+
+    if not raw_mix_data:
+        raise ValueError("Mix data cannot be empty")
+    if screen_slot < 1 or screen_slot > 255:
+        raise ValueError("Screen slot must be 1-255")
+
+    # Calculate CRC32
+    crc32 = zlib.crc32(raw_mix_data) & 0xFFFFFFFF
+
+    # Build command payload
+    payload = bytearray()
+    payload.append(0x00)  # Unknown fixed byte
+    payload.extend(len(raw_mix_data).to_bytes(4, 'little'))  # Data size
+    payload.extend(crc32.to_bytes(4, 'little'))              # CRC32
+    payload.append(0x02)  # Unknown fixed byte
+    payload.append(screen_slot)                              # Screen slot
+    payload.extend(raw_mix_data)                             # Mixed data
+
+    return make_command_payload(0x0004, bytes(payload))
+
+
+# =============================================================================
+# Batch Pixel Commands (from go-ipxl)
+# =============================================================================
+
+def make_batch_pixel_command(r: int, g: int, b: int, positions: list[tuple[int, int]]) -> bytes:
+    """Build command to set multiple pixels of the same color at once.
+
+    This is more efficient than sending individual pixel commands when
+    drawing shapes or patterns with the same color.
+
+    Command format from go-ipxl (display.go):
+    [length_low, length_high, 5, 1, 0, R, G, B, x1, y1, x2, y2, ...]
+
+    Args:
+        r: Red component (0-255)
+        g: Green component (0-255)
+        b: Blue component (0-255)
+        positions: List of (x, y) coordinate tuples
+
+    Returns:
+        Command bytes for batch pixel control
+
+    Raises:
+        ValueError: If positions list is empty or exceeds max size
+    """
+    if not positions:
+        raise ValueError("At least one position must be specified")
+
+    # Max positions per packet (BLE MTU limitation)
+    # Header is 8 bytes, each position is 2 bytes
+    # Max packet ~244 bytes, so max positions = (244 - 8) / 2 = 118
+    MAX_POSITIONS_PER_PACKET = 118
+
+    if len(positions) > MAX_POSITIONS_PER_PACKET:
+        raise ValueError(f"Too many positions ({len(positions)}), max is {MAX_POSITIONS_PER_PACKET}")
+
+    # Build header: [length, 0, 5, 1, 0, R, G, B]
+    header = bytearray([0, 0, 5, 1, 0, r, g, b])
+
+    # Build body: [x1, y1, x2, y2, ...]
+    body = bytearray()
+    for x, y in positions:
+        body.append(x & 0xFF)
+        body.append(y & 0xFF)
+
+    # Set total length in header
+    total_len = len(header) + len(body)
+    header[0] = total_len & 0xFF
+    header[1] = (total_len >> 8) & 0xFF
+
+    return bytes(header + body)
+
+
+def group_pixels_by_color(pixels: list[dict]) -> dict[tuple[int, int, int], list[tuple[int, int]]]:
+    """Group pixels by their color for efficient batch sending.
+
+    Args:
+        pixels: List of dicts with 'x', 'y', and 'color' keys
+                color can be hex string ('ff0000') or RGB tuple (255, 0, 0)
+
+    Returns:
+        Dictionary mapping RGB tuples to lists of (x, y) positions
+    """
+    color_groups: dict[tuple[int, int, int], list[tuple[int, int]]] = {}
+
+    for pixel in pixels:
+        x = pixel.get('x', 0)
+        y = pixel.get('y', 0)
+        color = pixel.get('color', 'ffffff')
+
+        # Parse color to RGB tuple
+        if isinstance(color, str):
+            color = color.lstrip('#')
+            if len(color) != 6:
+                continue
+            r = int(color[0:2], 16)
+            g = int(color[2:4], 16)
+            b = int(color[4:6], 16)
+        elif isinstance(color, (tuple, list)) and len(color) >= 3:
+            r, g, b = color[0], color[1], color[2]
+        else:
+            continue
+
+        rgb = (r, g, b)
+        if rgb not in color_groups:
+            color_groups[rgb] = []
+        color_groups[rgb].append((x, y))
+
+    return color_groups
+
+
+# =============================================================================
+# Raw RGB Camera Protocol (from go-ipxl)
+# =============================================================================
+
+# Data type constants (from go-ipxl consts.go)
+TYPE_CAMERA = 0
+TYPE_VIDEO = 1
+TYPE_IMAGE = 2
+TYPE_GIF = 3
+TYPE_TEXT = 4
+TYPE_DIY_IMAGE = 5
+TYPE_DIY_IMAGE_UNREDO = 6
+TYPE_TEM = 7
+
+# Chunk size for raw RGB transfer (from go-ipxl)
+RAW_RGB_CHUNK_SIZE = 12288  # 12KB chunks
+
+# Default values
+DEFAULT_BRIGHTNESS = 50
+DEFAULT_LED_FRAME_SIZE = 1024
+
+
+def make_raw_rgb_chunk_command(
+    chunk_data: bytes,
+    total_rgb_data: bytes,
+    chunk_index: int,
+    brightness: int = 100
+) -> bytes:
+    """Build command to send a chunk of raw RGB data using the camera protocol.
+
+    This is the raw RGB protocol from go-ipxl that sends pixel data directly
+    without PNG/GIF encoding. Useful for real-time streaming or live animations.
+
+    Command format from go-ipxl (packet_builder.go):
+    [length_low, length_high, type_low, type_high, option, frame_len(4), data...]
+
+    For camera type with CRC:
+    [length_low, length_high, 0, 0, option, frame_len(4), crc32(4), 0x00, data...]
+
+    Args:
+        chunk_data: Raw RGB bytes for this chunk [R,G,B,R,G,B,...]
+        total_rgb_data: Complete RGB data (for CRC calculation)
+        chunk_index: Chunk index (0 for first, 1+ for continuation)
+        brightness: Brightness level 1-100 (default 100 = no modification)
+
+    Returns:
+        Command bytes for raw RGB chunk
+    """
+    import zlib
+
+    # Apply brightness if not 100%
+    if brightness != 100 and brightness > 0:
+        chunk_data = _apply_brightness(chunk_data, brightness)
+
+    # Option: 0 for first chunk, 2 for continuation
+    option = 0 if chunk_index == 0 else 2
+
+    # Data type bytes for TYPE_CAMERA
+    data_type_bytes = bytes([0, 0])
+
+    # Header length for camera type is 9
+    header_length = 9
+
+    # Calculate total packet length (no CRC for camera type in simplified version)
+    total_length = header_length + len(chunk_data)
+
+    # Build header
+    header = bytearray()
+    header.append(total_length & 0xFF)           # Length low
+    header.append((total_length >> 8) & 0xFF)    # Length high
+    header.extend(data_type_bytes)               # Data type [0, 0]
+    header.append(option)                        # Option (0=first, 2=continue)
+
+    # Frame length (4 bytes, little-endian)
+    frame_len = DEFAULT_LED_FRAME_SIZE
+    header.extend(frame_len.to_bytes(4, 'little'))
+
+    return bytes(header) + chunk_data
+
+
+def _apply_brightness(data: bytes, brightness: int) -> bytes:
+    """Apply brightness modification to RGB data.
+
+    Multiplies each byte by brightness percentage.
+
+    Args:
+        data: Raw RGB bytes
+        brightness: Brightness level 1-100
+
+    Returns:
+        Modified RGB bytes
+    """
+    result = bytearray(len(data))
+    for i, byte_val in enumerate(data):
+        new_val = (byte_val * brightness) // 100
+        result[i] = min(255, max(0, new_val))
+    return bytes(result)
+
+
+def split_rgb_into_chunks(rgb_data: bytes, chunk_size: int = RAW_RGB_CHUNK_SIZE) -> list[bytes]:
+    """Split RGB data into chunks for transmission.
+
+    Args:
+        rgb_data: Complete RGB byte array [R,G,B,R,G,B,...]
+        chunk_size: Size of each chunk (default 12KB)
+
+    Returns:
+        List of byte chunks
+    """
+    chunks = []
+    for i in range(0, len(rgb_data), chunk_size):
+        chunks.append(rgb_data[i:i + chunk_size])
+    return chunks
+
+
+def image_to_rgb_bytes(
+    image_bytes: bytes,
+    width: int,
+    height: int,
+    file_extension: str = ".png"
+) -> bytes:
+    """Convert image to raw RGB byte array.
+
+    Args:
+        image_bytes: Raw image file bytes (PNG, JPEG, etc.)
+        width: Target width to resize to
+        height: Target height to resize to
+        file_extension: Image format hint
+
+    Returns:
+        Raw RGB bytes [R,G,B,R,G,B,...] with length = width * height * 3
+    """
+    from PIL import Image
+    import io
+
+    # Load image
+    img = Image.open(io.BytesIO(image_bytes))
+
+    # Convert to RGB (handles RGBA, grayscale, etc.)
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
+
+    # Resize to target dimensions using nearest neighbor (like go-ipxl)
+    img = img.resize((width, height), Image.Resampling.NEAREST)
+
+    # Extract RGB bytes
+    rgb_data = bytearray()
+    for y in range(height):
+        for x in range(width):
+            r, g, b = img.getpixel((x, y))
+            rgb_data.append(r)
+            rgb_data.append(g)
+            rgb_data.append(b)
+
+    return bytes(rgb_data)

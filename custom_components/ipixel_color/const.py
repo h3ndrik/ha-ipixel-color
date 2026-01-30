@@ -85,3 +85,25 @@ GIF_ACK_TIMEOUT = 8.0  # seconds
 MEDIA_PLAYER_IDLE = "idle"
 MEDIA_PLAYER_PLAYING = "playing"
 MEDIA_PLAYER_PAUSED = "paused"
+
+# Animation/FPS constants for draw_visuals service
+FPS_MIN = 1
+FPS_MAX = 30
+FPS_DEFAULT = 10
+
+# Element types for draw_visuals service
+ELEMENT_TEXT = "text"
+ELEMENT_TEXTSCROLL = "textscroll"
+ELEMENT_TEXTLONG = "textlong"
+ELEMENT_ICON = "icon"
+ELEMENT_IMAGE = "image"
+ELEMENT_PIXELS = "pixels"
+
+ELEMENT_TYPES = [
+    ELEMENT_TEXT,
+    ELEMENT_TEXTSCROLL,
+    ELEMENT_TEXTLONG,
+    ELEMENT_ICON,
+    ELEMENT_IMAGE,
+    ELEMENT_PIXELS,
+]

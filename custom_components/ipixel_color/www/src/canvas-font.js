@@ -24,15 +24,24 @@ const fontLoadPromises = {};
 
 /**
  * Get the base URL for font files
- * Handles HACS, manual installation, and local preview paths
+ * Handles HACS, manual installation, local preview, and GitHub Pages paths
  */
 function getFontUrl(fontName) {
-  // Check if we're in local preview mode (not in Home Assistant)
-  if (window.location.pathname.includes('preview.html') || window.location.port === '8080') {
-    return `./fonts/${fontName}.ttf`;
+  // Detect Home Assistant by checking for HA-specific globals or URL patterns
+  const isHomeAssistant = typeof window.hassConnection !== 'undefined' ||
+                          window.location.pathname.includes('/lovelace') ||
+                          window.location.pathname.includes('/dashboard') ||
+                          document.querySelector('home-assistant') !== null;
+
+  if (isHomeAssistant) {
+    // HACS path for Home Assistant
+    return `/hacsfiles/ipixel_color/fonts/${fontName}.ttf`;
   }
-  // Try HACS path (most common in Home Assistant)
-  return `/hacsfiles/ipixel_color/fonts/${fontName}.ttf`;
+
+  // For GitHub Pages, local preview, or any non-HA environment
+  // Check if we're in a subdirectory (e.g., /ha-ipixel-color/)
+  const basePath = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
+  return `${basePath}fonts/${fontName}.ttf`;
 }
 
 /**

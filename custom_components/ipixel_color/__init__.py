@@ -31,6 +31,7 @@ PLATFORMS: list[Platform] = [
     Platform.BUTTON,
     Platform.LIGHT,
     Platform.MEDIA_PLAYER,
+    Platform.CAMERA,
 ]
 
 # Service names
@@ -62,6 +63,22 @@ SERVICE_ERASE_DATA = "erase_data"
 SERVICE_SET_PROGRAM_MODE = "set_program_mode"
 SERVICE_SET_RHYTHM_MODE_ADVANCED = "set_rhythm_mode_advanced"
 SERVICE_DISPLAY_IMAGE_URL = "display_image_url"
+# Screen and mode control (from ipixel-ctrl reference)
+SERVICE_SET_SCREEN = "set_screen"
+SERVICE_SET_DIY_MODE = "set_diy_mode"
+SERVICE_SEND_RAW_COMMAND = "send_raw_command"
+# Password management (from ipixel-ctrl protocol)
+SERVICE_SET_PASSWORD = "set_password"
+SERVICE_VERIFY_PASSWORD = "verify_password"
+# Mixed data command (from ipixel-ctrl protocol)
+SERVICE_SEND_MIX_DATA = "send_mix_data"
+# Optimized pixel and image services (from go-ipxl)
+SERVICE_SET_PIXELS_BATCHED = "set_pixels_batched"
+SERVICE_DISPLAY_IMAGE_RAW_RGB = "display_image_raw_rgb"
+SERVICE_DISPLAY_IMAGE_RAW_RGB_URL = "display_image_raw_rgb_url"
+SERVICE_DRAW_SOLID_COLOR = "draw_solid_color"
+# Visual rendering service (from UnexpectedMatrixPixels)
+SERVICE_DRAW_VISUALS = "draw_visuals"
 
 # Frontend card registration flag
 FRONTEND_REGISTERED = False
@@ -340,6 +357,146 @@ async def _async_register_services(
         except Exception as err:
             _LOGGER.error("Error setting pixels: %s", err)
 
+    async def handle_set_pixels_batched(call: ServiceCall) -> None:
+        """Handle set_pixels_batched service call (optimized batch sending)."""
+        pixels = call.data.get("pixels", [])
+
+        if not pixels:
+            _LOGGER.warning("No pixels provided")
+            return
+
+        try:
+            # Ensure fun mode is enabled
+            await api.set_fun_mode(True)
+
+            success = await api.set_pixels_batched(pixels)
+            if success:
+                _LOGGER.info("Set %d pixels successfully (batched)", len(pixels))
+            else:
+                _LOGGER.warning("Some batched pixels failed to set")
+        except Exception as err:
+            _LOGGER.error("Error setting batched pixels: %s", err)
+
+    async def handle_display_image_raw_rgb(call: ServiceCall) -> None:
+        """Handle display_image_raw_rgb service call (raw RGB protocol)."""
+        image_path = call.data.get("image_path")
+        brightness = call.data.get("brightness", 100)
+
+        if not image_path:
+            _LOGGER.error("No image_path provided")
+            return
+
+        try:
+            import aiofiles
+            async with aiofiles.open(image_path, 'rb') as f:
+                image_bytes = await f.read()
+
+            # Determine file extension
+            file_ext = "." + image_path.split(".")[-1].lower() if "." in image_path else ".png"
+
+            success = await api.display_image_raw_rgb(image_bytes, file_ext, brightness)
+            if success:
+                _LOGGER.info("Displayed raw RGB image: %s", image_path)
+            else:
+                _LOGGER.error("Failed to display raw RGB image")
+        except FileNotFoundError:
+            _LOGGER.error("Image file not found: %s", image_path)
+        except Exception as err:
+            _LOGGER.error("Error displaying raw RGB image: %s", err)
+
+    async def handle_display_image_raw_rgb_url(call: ServiceCall) -> None:
+        """Handle display_image_raw_rgb_url service call (raw RGB from URL)."""
+        url = call.data.get("url")
+        brightness = call.data.get("brightness", 100)
+
+        if not url:
+            _LOGGER.error("No URL provided")
+            return
+
+        try:
+            success = await api.display_image_raw_rgb_url(url, brightness)
+            if success:
+                _LOGGER.info("Displayed raw RGB image from URL: %s", url)
+            else:
+                _LOGGER.error("Failed to display raw RGB image from URL")
+        except Exception as err:
+            _LOGGER.error("Error displaying raw RGB image from URL: %s", err)
+
+    async def handle_draw_solid_color(call: ServiceCall) -> None:
+        """Handle draw_solid_color service call (fill display with color)."""
+        color = call.data.get("color", "000000")
+
+        try:
+            success = await api.draw_solid_color(color)
+            if success:
+                _LOGGER.info("Filled display with color #%s", color)
+            else:
+                _LOGGER.error("Failed to fill display with color")
+        except Exception as err:
+            _LOGGER.error("Error filling display with color: %s", err)
+
+    async def handle_draw_visuals(call: ServiceCall) -> None:
+        """Handle draw_visuals service call (multi-element rendering with animation)."""
+        from homeassistant.helpers.aiohttp_client import async_get_clientsession
+        from .display.visual_renderer import VisualRenderer
+        from .display.animation_controller import AnimationController
+        from .display.font_cache import get_font_cache
+        from .const import FPS_DEFAULT
+
+        elements = call.data.get("elements", [])
+        background = call.data.get("background", [0, 0, 0])
+        fps = call.data.get("fps", FPS_DEFAULT)
+
+        if not elements:
+            _LOGGER.warning("No elements provided for draw_visuals service")
+            return
+
+        try:
+            # Parse background color
+            if isinstance(background, list) and len(background) >= 3:
+                bg_color = (int(background[0]), int(background[1]), int(background[2]))
+            elif isinstance(background, str):
+                from .color import hex_to_rgb
+                bg_color = hex_to_rgb(background)
+            else:
+                bg_color = (0, 0, 0)
+
+            # Get device info for dimensions
+            device_info = await api.get_device_info()
+            width = device_info.get("width", 64)
+            height = device_info.get("height", 16)
+
+            # Get HTTP session for image loading
+            session = async_get_clientsession(hass)
+
+            # Create renderer
+            renderer = VisualRenderer(width, height, get_font_cache(), session)
+
+            # Get or create animation controller
+            controller_key = f"{entry.entry_id}_animation"
+            if controller_key not in hass.data[DOMAIN]:
+                hass.data[DOMAIN][controller_key] = AnimationController(hass, api, renderer)
+            else:
+                # Update renderer in existing controller
+                controller = hass.data[DOMAIN][controller_key]
+                controller._renderer = renderer
+
+            controller = hass.data[DOMAIN][controller_key]
+
+            # Prepare elements (async for image loading)
+            prepared = await renderer.prepare_elements(elements, session)
+
+            # Start rendering
+            await controller.start(prepared, bg_color, fps)
+
+            _LOGGER.info(
+                "draw_visuals started: %d elements, fps=%d, animated=%s",
+                len(elements), fps, renderer.detect_animation(prepared)
+            )
+
+        except Exception as err:
+            _LOGGER.error("Error in draw_visuals: %s", err)
+
     async def handle_clear_pixels(call: ServiceCall) -> None:
         """Handle clear_pixels service call."""
         try:
@@ -600,6 +757,123 @@ async def _async_register_services(
         except Exception as err:
             _LOGGER.error("Error displaying image from URL: %s", err)
 
+    # Screen and mode control handlers (from ipixel-ctrl reference)
+
+    async def handle_set_screen(call: ServiceCall) -> None:
+        """Handle set_screen service call."""
+        screen = call.data.get("screen", 1)
+
+        try:
+            success = await api.set_screen(screen)
+            if success:
+                _LOGGER.info("Screen set to %d", screen)
+            else:
+                _LOGGER.error("Failed to set screen to %d", screen)
+        except Exception as err:
+            _LOGGER.error("Error setting screen: %s", err)
+
+    async def handle_set_diy_mode(call: ServiceCall) -> None:
+        """Handle set_diy_mode service call."""
+        # Support both old 'enable' bool and new 'mode' int parameter
+        mode_str = call.data.get("mode")
+        enable = call.data.get("enable")
+
+        if mode_str is not None:
+            mode = int(mode_str)
+        elif enable is not None:
+            # Backwards compatibility with bool
+            mode = 1 if enable else 0
+        else:
+            mode = 1  # Default to enter + clear
+
+        mode_names = {
+            0: "exit (keep previous)",
+            1: "enter (clear display)",
+            2: "exit (keep current)",
+            3: "enter (preserve content)"
+        }
+
+        try:
+            success = await api.set_diy_mode(mode)
+            if success:
+                _LOGGER.info("DIY mode set to: %s", mode_names.get(mode, str(mode)))
+            else:
+                _LOGGER.error("Failed to set DIY mode")
+        except Exception as err:
+            _LOGGER.error("Error setting DIY mode: %s", err)
+
+    async def handle_send_raw_command(call: ServiceCall) -> None:
+        """Handle send_raw_command service call."""
+        hex_data = call.data.get("hex_data", "")
+
+        if not hex_data:
+            _LOGGER.error("No hex data provided for send_raw_command")
+            return
+
+        try:
+            success = await api.send_raw_command(hex_data)
+            if success:
+                _LOGGER.info("Raw command sent: %s", hex_data)
+            else:
+                _LOGGER.error("Failed to send raw command: %s", hex_data)
+        except Exception as err:
+            _LOGGER.error("Error sending raw command: %s", err)
+
+    # Password management handlers
+
+    async def handle_set_password(call: ServiceCall) -> None:
+        """Handle set_password service call."""
+        enabled = call.data.get("enabled", True)
+        password = call.data.get("password", "")
+
+        if not password:
+            _LOGGER.error("No password provided for set_password")
+            return
+
+        try:
+            success = await api.set_password(enabled, password)
+            if success:
+                _LOGGER.info("Password protection %s", "enabled" if enabled else "disabled")
+            else:
+                _LOGGER.error("Failed to set password")
+        except Exception as err:
+            _LOGGER.error("Error setting password: %s", err)
+
+    async def handle_verify_password(call: ServiceCall) -> None:
+        """Handle verify_password service call."""
+        password = call.data.get("password", "")
+
+        if not password:
+            _LOGGER.error("No password provided for verify_password")
+            return
+
+        try:
+            success = await api.verify_password(password)
+            if success:
+                _LOGGER.info("Password verified successfully")
+            else:
+                _LOGGER.error("Password verification failed")
+        except Exception as err:
+            _LOGGER.error("Error verifying password: %s", err)
+
+    async def handle_send_mix_data(call: ServiceCall) -> None:
+        """Handle send_mix_data service call."""
+        hex_data = call.data.get("hex_data", "")
+        screen_slot = call.data.get("screen_slot", 1)
+
+        if not hex_data:
+            _LOGGER.error("No hex data provided for send_mix_data")
+            return
+
+        try:
+            success = await api.send_mix_data_raw(hex_data, screen_slot)
+            if success:
+                _LOGGER.info("Mixed data sent to slot %d", screen_slot)
+            else:
+                _LOGGER.error("Failed to send mixed data")
+        except Exception as err:
+            _LOGGER.error("Error sending mixed data: %s", err)
+
     # Register all services if not already registered
     if not hass.services.has_service(DOMAIN, SERVICE_DISPLAY_TEXT):
         hass.services.async_register(DOMAIN, SERVICE_DISPLAY_TEXT, handle_display_text)
@@ -654,6 +928,33 @@ async def _async_register_services(
         hass.services.async_register(DOMAIN, SERVICE_SET_RHYTHM_MODE_ADVANCED, handle_set_rhythm_mode_advanced)
     if not hass.services.has_service(DOMAIN, SERVICE_DISPLAY_IMAGE_URL):
         hass.services.async_register(DOMAIN, SERVICE_DISPLAY_IMAGE_URL, handle_display_image_url)
+    # Screen and mode control services (from ipixel-ctrl reference)
+    if not hass.services.has_service(DOMAIN, SERVICE_SET_SCREEN):
+        hass.services.async_register(DOMAIN, SERVICE_SET_SCREEN, handle_set_screen)
+    if not hass.services.has_service(DOMAIN, SERVICE_SET_DIY_MODE):
+        hass.services.async_register(DOMAIN, SERVICE_SET_DIY_MODE, handle_set_diy_mode)
+    if not hass.services.has_service(DOMAIN, SERVICE_SEND_RAW_COMMAND):
+        hass.services.async_register(DOMAIN, SERVICE_SEND_RAW_COMMAND, handle_send_raw_command)
+    # Password management services (from ipixel-ctrl protocol)
+    if not hass.services.has_service(DOMAIN, SERVICE_SET_PASSWORD):
+        hass.services.async_register(DOMAIN, SERVICE_SET_PASSWORD, handle_set_password)
+    if not hass.services.has_service(DOMAIN, SERVICE_VERIFY_PASSWORD):
+        hass.services.async_register(DOMAIN, SERVICE_VERIFY_PASSWORD, handle_verify_password)
+    # Mixed data service (from ipixel-ctrl protocol)
+    if not hass.services.has_service(DOMAIN, SERVICE_SEND_MIX_DATA):
+        hass.services.async_register(DOMAIN, SERVICE_SEND_MIX_DATA, handle_send_mix_data)
+    # Optimized pixel and image services (from go-ipxl)
+    if not hass.services.has_service(DOMAIN, SERVICE_SET_PIXELS_BATCHED):
+        hass.services.async_register(DOMAIN, SERVICE_SET_PIXELS_BATCHED, handle_set_pixels_batched)
+    if not hass.services.has_service(DOMAIN, SERVICE_DISPLAY_IMAGE_RAW_RGB):
+        hass.services.async_register(DOMAIN, SERVICE_DISPLAY_IMAGE_RAW_RGB, handle_display_image_raw_rgb)
+    if not hass.services.has_service(DOMAIN, SERVICE_DISPLAY_IMAGE_RAW_RGB_URL):
+        hass.services.async_register(DOMAIN, SERVICE_DISPLAY_IMAGE_RAW_RGB_URL, handle_display_image_raw_rgb_url)
+    if not hass.services.has_service(DOMAIN, SERVICE_DRAW_SOLID_COLOR):
+        hass.services.async_register(DOMAIN, SERVICE_DRAW_SOLID_COLOR, handle_draw_solid_color)
+    # Visual rendering service (from UnexpectedMatrixPixels)
+    if not hass.services.has_service(DOMAIN, SERVICE_DRAW_VISUALS):
+        hass.services.async_register(DOMAIN, SERVICE_DRAW_VISUALS, handle_draw_visuals)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -662,6 +963,15 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Unload platforms
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        # Stop animation controller if running
+        animation_controller = hass.data[DOMAIN].pop(f"{entry.entry_id}_animation", None)
+        if animation_controller:
+            try:
+                await animation_controller.stop()
+                _LOGGER.debug("Stopped animation controller")
+            except Exception as err:
+                _LOGGER.debug("Error stopping animation controller: %s", err)
+
         # Stop schedule manager playlist loop
         schedule_manager = hass.data[DOMAIN].pop(f"{entry.entry_id}_schedule", None)
         if schedule_manager:

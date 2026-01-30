@@ -8,6 +8,7 @@ import { iPIXELCardBase } from '../base.js';
 import { iPIXELCardStyles } from '../styles.js';
 import { textToPixels, textToScrollPixels } from '../font.js';
 import { textToPixelsCanvas, textToScrollPixelsCanvas, loadFont, isFontLoaded } from '../canvas-font.js';
+import { textToPixelsBdf, textToScrollPixelsBdf, loadBdfFont, isBdfFontLoaded, getHeightKey } from '../bdf-font.js';
 import { LEDMatrixRenderer, createPixelSvg, EFFECTS } from '../renderer.js';
 import { getDisplayState, updateDisplayState } from '../state.js';
 
@@ -40,14 +41,19 @@ export class iPIXELDisplayCard extends iPIXELCardBase {
       this._renderer = rendererCache.get(this._rendererId);
     }
 
-    // Preload default fonts
-    loadFont('VCR_OSD_MONO').then(() => {
-      // Re-render if we have state to display
-      if (this._lastState) {
-        this._updateDisplay(this._lastState);
-      }
+    // Preload BDF fonts (preferred for pixel-perfect rendering)
+    loadBdfFont('VCR_OSD_MONO', 16).then(() => {
+      if (this._lastState) this._updateDisplay(this._lastState);
     });
-    loadFont('CUSONG'); // Load in background
+    loadBdfFont('VCR_OSD_MONO', 24);
+    loadBdfFont('VCR_OSD_MONO', 32);
+    loadBdfFont('CUSONG', 16);
+    loadBdfFont('CUSONG', 24);
+    loadBdfFont('CUSONG', 32);
+
+    // Also preload TTF fonts as fallback
+    loadFont('VCR_OSD_MONO');
+    loadFont('CUSONG');
   }
 
   disconnectedCallback() {
@@ -66,31 +72,32 @@ export class iPIXELDisplayCard extends iPIXELCardBase {
   _getResolutionCached() {
     const [sensorWidth, sensorHeight] = this.getResolution();
 
-    // If sensors return valid values, cache them
+    // If sensors return valid non-default values, use them and cache
     if (sensorWidth > 0 && sensorHeight > 0 && sensorWidth !== 64) {
       this._cachedResolution = [sensorWidth, sensorHeight];
       // Also save to localStorage for persistence
       try {
         localStorage.setItem('iPIXEL_Resolution', JSON.stringify([sensorWidth, sensorHeight]));
       } catch (e) { }
-    }
-
-    // If we have cached resolution, use it
-    if (this._cachedResolution) {
       return this._cachedResolution;
     }
 
-    // Try to load from localStorage
+    // Check localStorage first (source of truth for preview mode / BLE auto-detect)
     try {
       const saved = localStorage.getItem('iPIXEL_Resolution');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length === 2) {
+        if (Array.isArray(parsed) && parsed.length === 2 && parsed[0] > 0 && parsed[1] > 0) {
           this._cachedResolution = parsed;
           return parsed;
         }
       }
     } catch (e) { }
+
+    // If we have cached resolution (from previous sensor read), use it
+    if (this._cachedResolution) {
+      return this._cachedResolution;
+    }
 
     // Fall back to config or default
     if (this._config?.width && this._config?.height) {
@@ -125,10 +132,11 @@ export class iPIXELDisplayCard extends iPIXELCardBase {
     }
 
     if (!isOn) {
-      // Display off - show blank
+      // Display off - show blank using renderer (consistent with on state)
+      this._renderer.setData([]);
+      this._renderer.setEffect('fixed', 50);
       this._renderer.stop();
-      const pixels = textToPixels('', width, height, '#111', '#050505');
-      this._displayContainer.innerHTML = createPixelSvg(width, height, pixels);
+      this._renderer.renderStatic();
       return;
     }
 
@@ -168,23 +176,38 @@ export class iPIXELDisplayCard extends iPIXELCardBase {
       this._renderer.setData([], [], width);
     } else {
       // Helper to get pixels using appropriate renderer
+      // Priority: BDF (pixel-perfect) → Canvas/TTF → Legacy bitmap
+      const heightKey = getHeightKey(height);
+      const useBdfFont = font !== 'LEGACY' && isBdfFontLoaded(font, heightKey);
       const useCanvasFont = font !== 'LEGACY' && isFontLoaded(font);
 
       const getPixels = (text, w, h, fg, bg) => {
+        // Try BDF first (pixel-perfect)
+        if (useBdfFont) {
+          const bdfPixels = textToPixelsBdf(text, w, h, fg, bg, font);
+          if (bdfPixels) return bdfPixels;
+        }
+        // Try Canvas/TTF as fallback
         if (useCanvasFont) {
           const canvasPixels = textToPixelsCanvas(text, w, h, fg, bg, font);
           if (canvasPixels) return canvasPixels;
         }
-        // Fall back to bitmap font
+        // Fall back to legacy bitmap font
         return textToPixels(text, w, h, fg, bg);
       };
 
       const getScrollPixels = (text, displayW, h, fg, bg) => {
+        // Try BDF first (pixel-perfect)
+        if (useBdfFont) {
+          const bdfResult = textToScrollPixelsBdf(text, displayW, h, fg, bg, font);
+          if (bdfResult) return bdfResult;
+        }
+        // Try Canvas/TTF as fallback
         if (useCanvasFont) {
           const canvasResult = textToScrollPixelsCanvas(text, displayW, h, fg, bg, font);
           if (canvasResult) return canvasResult;
         }
-        // Fall back to bitmap font
+        // Fall back to legacy bitmap font
         return textToScrollPixels(text, displayW, h, fg, bg);
       };
 
