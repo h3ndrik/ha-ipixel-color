@@ -28,5 +28,8 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/cagcoach/ha-ipixel-color"
+  },
+  "dependencies": {
+    "react-pixel-display": "^1.0.0"
   }
 }
